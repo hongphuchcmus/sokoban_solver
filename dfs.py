@@ -1,7 +1,7 @@
 import sokoban_console_refactored as skb
 import time as time
 
-class BFSSolver:
+class DFSSolver:
     def __init__(self, g: skb.Sokoban):
         self.g = g
         self.transposition_table = {}
@@ -44,7 +44,7 @@ class BFSSolver:
         g = self.g
         while len(frontier) > 0:
             #print("processed_count = ", processed_count)
-            current_hash = frontier.pop(0)
+            current_hash = frontier.pop()
             current = transposition_table[current_hash]
             explored.append(current_hash)
 
@@ -57,7 +57,7 @@ class BFSSolver:
                     if g.is_solved(child):
                         found = True
                         goal_state_hash = child_hash
-                        print("Done!")
+                        #print("Done!")
                         break
                     frontier.append(child_hash)
             processed_count += 1
