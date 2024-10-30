@@ -77,13 +77,6 @@ def branch(puzzle_matrix, state, deadlock_patterns, transposition_table):
             new_reachables = reachable_squares(puzzle_matrix, state[0], new_stones)
             child_state = get_state(new_reachables, new_stones)
 
-            deadlock = is_deadlock(puzzle_matrix, child_state, deadlock_patterns, new_stone_position)
-            if len(deadlock) > 0:
-                transposition_table[str(hash(child_state))] = child_state
-                draw_on_static_puzzle(puzzle_matrix, child_state, deadlock)
-                print("Deadlock found!")
-                continue
-
             child_states.append(child_state)
     return child_states
 
@@ -394,8 +387,7 @@ def is_deadlock(puzzle_matrix, state, patterns, pushed_stone):
     # Now assume that we only check for 2x2 deadlock patterns
     # That mean in the puzzle we should check a 3x3 area
     # The stone should be in the middle of the area
-    deadlock_area = []
-
+    
     check_square = [\
         (pushed_stone[0] -1, pushed_stone[1] - 1),
         (pushed_stone[0] - 1, pushed_stone[1]),
