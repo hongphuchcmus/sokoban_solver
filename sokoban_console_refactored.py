@@ -19,6 +19,20 @@ class State:
     def __init__(self, ares_position , stone_positions ):
         self.ares_position = ares_position
         self.stone_positions = stone_positions
+    
+    def get_hash(self) -> str:
+        ares_y = self.ares_position[Y]
+        ares_x = self.ares_position[X]
+        to_hash = [(ares_y, ares_x)]
+        stone_positions = []
+        for sp in self.stone_positions:
+            stone_y = sp[Y]
+            stone_x = sp[X]
+            stone_positions.append((stone_y, stone_x))
+        stone_positions = tuple(stone_positions)
+        to_hash.append(stone_positions)
+        to_hash = tuple(to_hash)
+        return str(hash(to_hash))
 
 class Sokoban:
     def __init__(self, input : str) -> None:
@@ -34,8 +48,8 @@ class Sokoban:
         # Preprocess
         # TODO: Fill in missing spaces to make the input square
         # Righ now, just assume that is the case
-        self.ares_initial_position = self.init_ares_position()
-        self.stones_initial_positions = self.init_stone_positions()
+        self.initial_ares_position = self.init_ares_position()
+        self.initial_stone_positions = self.init_stone_positions()
         # Since stones and player are dynamic, it's better to store them in separate lists
         # The working matrix should only contain static objects
         self.matrix = self.get_static_matrix()
@@ -172,6 +186,12 @@ class Sokoban:
         return []
 
     # Init deadlocks
+    # This used to be a more advance system,
+    # allowing the check for predefined deadlock pattern 
+    # from all directions
+    # The deadlocks used in the get_deadlock()
+    # now only checks for 2x2 pattern
+    # for performance reasons
     # Ex: A deadlock: ["#$", "#$"]
     def get_deadlock_patterns(self):
         def flip_pattern(pattern, width, height):
@@ -254,7 +274,7 @@ class Sokoban:
                     stone_positions.append((i, j))
         return stone_positions
 
-    # Simpliy working matrix with static objects, i.g walls, switches
+    # Simplify the working matrix with static objects, i.g walls, switches and spaces
     def get_static_matrix(self):
         static_matrix = []
         for i in range(len(self.input_matrix)):
@@ -269,17 +289,20 @@ class Sokoban:
             static_matrix.append("".join(row))
         return static_matrix
 
+    # Deprecated: It's upto the solver to init the first state
     def initial_state(self):
-        reachables =  self.reachable_squares(self.ares_initial_position, self.stones_initial_positions)
+        reachables =  self.reachable_squares(self.initial_ares_position, self.initial_stone_positions)
         min_reachable = self.minreachable_square(reachables)
-        return State(min_reachable, self.stones_initial_positions)
+        return State(min_reachable, self.initial_stone_positions)
     
+    # Are all stones at the switches?
     def is_solved(self, state : State):
         for stone_position in state.stone_positions:
             if self.matrix_at(stone_position) != SWITCH:
                 return False
         return True
     
+    # Deprecated. Return the squares at which ares can go there and push a stone
     def pushable_squares(self, reachable_squares , stone_position, state : State):
         pushables = []
         for neighbor in self.neighbors(stone_position):
@@ -287,11 +310,22 @@ class Sokoban:
                 pushables.append(neighbor)
         return pushables
 
+    # Return the neighbors of "position" in 4 directions
     def neighbors(self, position ):
         y = position[Y]
         x = position[X]
         return [(y+1, x), (y-1, x), (y, x+1), (y, x-1)]
 
+    def is_neighbor(self, neighbor, position):
+        if abs(neighbor[Y] - position[Y]) > 1 or abs(neighbor[X] - position[X] > 1):
+            return False
+
+        for d in DIRECTIONS:
+            if position[Y] + d[Y] == neighbor[Y] and position[X] + d[X] == neighbor[X]:
+                return True
+        return False
+
+    # Deprecated. Return the reachable square with the smallest index 
     def minreachable_square(self, reachable_squares):
         min_square = reachable_squares[0]
         for i in range(1, len(reachable_squares)):
@@ -299,6 +333,7 @@ class Sokoban:
                 min_square = reachable_squares[i]
         return min_square
 
+    # Deprecated. Return all the reachable square from "ares_position"
     def reachable_squares(self, ares_postion , stone_positions ):
         # A simple DFS to find reachable squares
         frontier = [ares_postion]
@@ -314,6 +349,7 @@ class Sokoban:
                     frontier.append(neighbor)
         return explored
 
+    # Can ares push a stone at "stone_position" from "ares_position"
     def can_push(self, ares_position , stone_position , state:State):
         y_translation = stone_position[Y] - ares_position[Y]
         x_translation = stone_position[X] - ares_position[X]
@@ -322,19 +358,24 @@ class Sokoban:
         if self.matrix_at(new_position) != WALL and (new_position not in state.stone_positions):
             return True
         return False
-
+    
+    # Deprecated. Can ares move in the particular direction
     def can_move(self, ares_position, direction, state : State):
         new_position = (ares_position[Y] + direction[Y], ares_position[X] + direction[X])
         if self.matrix_at(new_position) != WALL and (new_position not in state.stone_positions):
             return True
         return False
 
+    # Return the stone position after pushing from "ares_position"
     def push(self, ares_position, stone_position, state:State):
         y_translation = stone_position[Y] - ares_position[Y]
         x_translation = stone_position[X] - ares_position[X]
         new_position = (stone_position[Y] + y_translation, stone_position[X] + x_translation)
         return new_position
 
+    # Deprecated: The State class should handle the hash itself.
+    # Return the hash for a state, using this to check if a state 
+    # was already discovered
     def get_hash(self, state : State) -> str:
         ares_y = state.ares_position[Y]
         ares_x = state.ares_position[X]
@@ -349,6 +390,7 @@ class Sokoban:
         to_hash = tuple(to_hash)
         return str(hash(to_hash))
 
+    # Return a corresponding letter for a direction
     def map_move_direction(self, direction):
         if direction == (0, 1):
             return "r"
@@ -359,11 +401,26 @@ class Sokoban:
         elif direction == (-1, 0):
             return "u"
         return "?"
-    # Run the string path thingy
+    
+    # Return a corresponding direction for a letter
+    # This is the inversed version of map_move_direction()
+    def map_move_letter(self, letter):
+        letter = letter.lower()
+        if letter == "r":
+            return (0, 1)
+        elif letter == "l":
+            return (0, -1)
+        elif letter == "d":
+            return (1, 0)
+        elif letter == "u":
+            return (-1, 0)
+    
+    # With the specified path, run and print (or return) the result
+    # of the matrix for each action  
     def run(self, path, console_output = True) -> list[str]:
         result = []
-        ares_last_position = self.ares_initial_position
-        stone_positions = self.stones_initial_positions.copy()
+        ares_last_position = self.initial_ares_position
+        stone_positions = self.initial_stone_positions.copy()
         for i in range(len(path)):
             time.sleep(.1)
             ares_movement = path[i].lower()

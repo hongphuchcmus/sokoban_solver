@@ -7,7 +7,7 @@ import time as time
 g = skb.Sokoban("input.txt")
 g.draw_input_matrix()
 
-for algo in ["bfs", "dfs", "ucs"]:
+for algo in ["ucs"]:
     solver = None
     if algo == "bfs":
         solver = BFSSolver(g)

@@ -1,14 +1,18 @@
 import sokoban_console_refactored as skb
 import time as time
 
-class UCSSolver:
+class AStarSolver:
     def __init__(self, g: skb.Sokoban):
         self.g = g
         self.frontier = []
-        self.costs = {}
+        self.fcosts = {}
+        self.gcosts = {}
         self.parents = {}
         self.explored = set()
         self.transposition_table = {}
+
+    def heuristic(state : skb.State):
+        return 1
 
     def branch(self, g : skb.Sokoban, state: skb.State) -> tuple[int, list[skb.State]]:
         child_states = []
@@ -72,24 +76,25 @@ class UCSSolver:
         initial_state_hash = initial_state.get_hash()
         
         self.frontier = [initial_state_hash]
-        self.costs = {initial_state_hash : 0}
+        self.fcosts = {initial_state_hash : self.heuristic(initial_state)}
+        self.gcosts = {initial_state_hash : 0}
         self.transposition_table = {initial_state_hash : initial_state}
         self.explored.clear()
         self.parents = {initial_state_hash : None }
 
         found = False 
-        processed_count = 0
+        # processed_count = 0
         goal_state_hash = ""
 
         while len(self.frontier) > 0:
-            print("processed_count = ", processed_count)
-            # Priority queue base on path costs
+            # Priority queue base on fcosts
             self.frontier.sort(key=lambda x: self.costs[x])
             
             current_hash = self.frontier.pop(0)
-            #print("Exploring state: ", current_hash)
+            print("Exploring state: ", current_hash)
             current = self.transposition_table[current_hash]
             
+            g.draw_state(current)
             if g.is_solved(current):
                 found = True
                 goal_state_hash = current_hash
@@ -105,15 +110,13 @@ class UCSSolver:
                     
                     self.transposition_table[child_hash] = child
                     self.parents[child_hash] = current_hash
-                    self.costs[child_hash] = self.costs[current_hash] + weight
+                    self.gcosts[child_hash] = self.gcosts[current_hash] + weight
 
                     self.frontier.append(child_hash)
 
-                elif (child_hash in self.frontier) and (self.costs[child_hash] > self.costs[current_hash] + weight):
+                elif (child_hash in self.frontier) and (self.costs[child_hash] > self.gcosts[current_hash] + weight):
                     self.parents[child_hash] = current_hash
-                    self.costs[child_hash] = self.costs[current_hash] + weight
-            
-            processed_count += 1
+                    self.costs[child_hash] = self.costs[current_hash] + self.cost
         
         if not found:
             return ""
