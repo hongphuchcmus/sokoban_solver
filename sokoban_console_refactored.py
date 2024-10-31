@@ -13,6 +13,8 @@ ARES_ON_SWITCH = "+"
 Y = 0
 X = 1
 
+DIRECTIONS = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+
 class State:
     def __init__(self, ares_position , stone_positions ):
         self.ares_position = ares_position
@@ -21,10 +23,14 @@ class State:
 class Sokoban:
     def __init__(self, input : str) -> None:
         self.input_matrix = []
+        self.stone_weights = []
         with open("input.txt", "r") as file_in:
+            # The first line holds the weights of our stones
             lines = file_in.read().splitlines()
-            for line in lines:
-                self.input_matrix.append(line)
+            self.stone_weights = list(map(int, lines[0].strip().split(" ")))
+            for i in range(1, len(lines)):
+                self.input_matrix.append(lines[i])
+
         # Preprocess
         # TODO: Fill in missing spaces to make the input square
         # Righ now, just assume that is the case
@@ -102,11 +108,11 @@ class Sokoban:
         return "".join(matrix_string)
 
     # Get what static object is at pos
-    def matrix_at(self, pos ) -> str:
+    def matrix_at(self, pos) -> str:
         return self.matrix[pos[Y]][pos[X]] # Remember y for height/row and x for width/column
 
-    def stone_weight(self, stone_id : int) -> int:
-        return 1
+    def get_stone_weight(self, stone_id : int) -> int:
+        return self.stone_weights[stone_id]
 
     # Check for deadlock patterns around the pushed_stone
     # Return the area that matched the deadlock pattern
@@ -267,7 +273,7 @@ class Sokoban:
         reachables =  self.reachable_squares(self.ares_initial_position, self.stones_initial_positions)
         min_reachable = self.minreachable_square(reachables)
         return State(min_reachable, self.stones_initial_positions)
-
+    
     def is_solved(self, state : State):
         for stone_position in state.stone_positions:
             if self.matrix_at(stone_position) != SWITCH:
@@ -312,6 +318,13 @@ class Sokoban:
         y_translation = stone_position[Y] - ares_position[Y]
         x_translation = stone_position[X] - ares_position[X]
         new_position = (stone_position[Y] + y_translation, stone_position[X] + x_translation)
+       
+        if self.matrix_at(new_position) != WALL and (new_position not in state.stone_positions):
+            return True
+        return False
+
+    def can_move(self, ares_position, direction, state : State):
+        new_position = (ares_position[Y] + direction[Y], ares_position[X] + direction[X])
         if self.matrix_at(new_position) != WALL and (new_position not in state.stone_positions):
             return True
         return False
@@ -337,82 +350,40 @@ class Sokoban:
         return str(hash(to_hash))
 
     def map_move_direction(self, direction):
-        if direction[1] == 1 and direction[0] == 0:
+        if direction == (0, 1):
             return "r"
-        elif direction[1] == -1 and direction[0] == 0:
+        elif direction == (0, -1):
             return "l"
-        elif direction[1] == 0 and direction[0] == 1:
+        elif direction == (1, 0):
             return "d"
-        elif direction[1] == 0 and direction[0] == -1:
+        elif direction == (-1, 0):
             return "u"
         return "?"
-    
-    # Since we are not saving ares exact position at each state
-    # We have to use some kind of pathfinding to interpolate area path
-    # moving between two states
-    def bfs_transition_path(self, from_position, to_position, stone_positions):
-        frontier = [from_position]
-        explored = []
-        parents = {from_position : None}
-        found = False
-        while frontier:
-            current = frontier.pop(0)
-            explored.append(current)
-            for neighbor in self.neighbors(current):
-                if self.matrix_at(neighbor) != WALL \
-                    and (neighbor not in stone_positions) \
-                        and (neighbor not in explored) \
-                            and (neighbor not in frontier):
-                    frontier.append(neighbor)
-                    parents[neighbor] = current
-                    if neighbor == to_position:
-                        found = True
-                        break
-            if found:
-                break
-        path = []
-        backtracer = to_position
-        while backtracer:
-            path.append(backtracer)
-            backtracer = parents[backtracer]
-        path.reverse()
-
-        return path
-    
-    # Let's make the game traces the path for us
-    def trace(self, state_path):
-        navigation_path = []
-
+    # Run the string path thingy
+    def run(self, path, console_output = True) -> list[str]:
+        result = []
         ares_last_position = self.ares_initial_position
-        for i in range(len(state_path)-1):
-            #print("Interpolating state ", i)
-            current_state = state_path[i]
-            next_state = state_path[i+1]
-            
-            interpolated = False
-            # We must find the difference in stone postions
-            # to determine where is ares's next position
-            for j in range(len(current_state.stone_positions)):
-                if current_state.stone_positions[j] != next_state.stone_positions[j]:
-                    current_position = current_state.stone_positions[j]
-                    new_position = next_state.stone_positions[j]
-                    push_direction = (new_position[Y] - current_position[Y], new_position[X] - current_position[X])
-                    # Where Ares should be to push the stone
-                    push_position = (current_position[Y] - push_direction[Y], current_position[X] - push_direction[X])
-
-                    # Move Ares to the push position
-                    path = self.bfs_transition_path(ares_last_position, push_position, current_state.stone_positions)
-                    for k in range(len(path)-1):
-                        direction = (path[k+1][Y] - path[k][Y], path[k+1][X] - path[k][X])
-                        navigation_path.append(self.map_move_direction(direction))
-                    # Push the stone
-                    navigation_path.append(self.map_move_direction(push_direction).upper())
-                    # Ares is now at the stone old position
-                    ares_last_position = current_position
-
-                    interpolated = True
-                    break
-            if not interpolated:
-                print("Some thing went wrong. We should always have a stone position change")
-                return []
-        return navigation_path        
+        stone_positions = self.stones_initial_positions.copy()
+        for i in range(len(path)):
+            time.sleep(.1)
+            ares_movement = path[i].lower()
+            ares_direction = (0, 0)
+            if ares_movement == "l":
+                ares_direction = (0, -1)
+            elif ares_movement == "r":
+                ares_direction = (0, 1)
+            elif ares_movement == "u":
+                ares_direction = (-1, 0)
+            elif ares_movement == "d":
+                ares_direction = (1, 0)
+            ares_new_position = (ares_last_position[Y] + ares_direction[Y], ares_last_position[X] + ares_direction[X])
+            if ares_movement.upper() == path[i]:
+                # Push the stone
+                for i in range(len(stone_positions)):
+                    if stone_positions[i] == ares_new_position:
+                        stone_positions[i] = (ares_new_position[Y] + ares_direction[Y], ares_new_position[X] + ares_direction[X])
+                        break
+            ares_last_position = ares_new_position
+            visual_state = State(ares_last_position, stone_positions)
+            result.append(self.draw_state(visual_state, [], console_output))
+        return result
