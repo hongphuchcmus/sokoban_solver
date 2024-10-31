@@ -14,7 +14,7 @@ for algo in ["ucs"]:
     elif algo == "dfs":
         solver = DFSSolver(g)
     else: # algo == "ucs":
-        solver = UCSSolver(g)
+        solver = UCSSolver(g, use_ares_steps=False)
     print("Solving with ", algo, "-"*20)
     start = time.time()
     path = solver.solve()
