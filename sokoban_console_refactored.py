@@ -15,23 +15,25 @@ X = 1
 
 DIRECTIONS = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 
+class Record:
+    def __init__(self) -> None:
+        self.steps = 0
+        self.weight = 0
+        self.node = 0
+        self.time_ms = 0
+        self.memory_mb = 0
+    def __str__(self) -> str:
+        # Ex: Steps: 16, Weight: 695, Node: 4321, Time (ms): 58.12, Memory (MB): 12.56
+        return f"Steps: {self.steps}, Weight: {self.weight}, Node: {self.node}, Time (ms): {self.time_ms}, Memory (MB): {self.memory_mb}"
+
 class State:
     def __init__(self, ares_position , stone_positions ):
         self.ares_position = ares_position
         self.stone_positions = stone_positions
     
     def get_hash(self) -> str:
-        ares_y = self.ares_position[Y]
-        ares_x = self.ares_position[X]
-        to_hash = [(ares_y, ares_x)]
-        stone_positions = []
-        for sp in self.stone_positions:
-            stone_y = sp[Y]
-            stone_x = sp[X]
-            stone_positions.append((stone_y, stone_x))
-        stone_positions = tuple(stone_positions)
-        to_hash.append(stone_positions)
-        to_hash = tuple(to_hash)
+        stone_positions = tuple(self.stone_positions)
+        to_hash = (self.ares_position, stone_positions)
         return str(hash(to_hash))
 
 class Sokoban:
@@ -310,14 +312,6 @@ class Sokoban:
                 return False
         return True
     
-    # Deprecated. Return the squares at which ares can go there and push a stone
-    def pushable_squares(self, reachable_squares , stone_position, state : State):
-        pushables = []
-        for neighbor in self.neighbors(stone_position):
-            if neighbor in reachable_squares and self.can_push(neighbor, stone_position, state):
-                pushables.append(neighbor)
-        return pushables
-
     # Return the neighbors of "position" in 4 directions
     def neighbors(self, position ):
         y = position[Y]
@@ -333,43 +327,12 @@ class Sokoban:
                 return True
         return False
 
-    # Deprecated. Return the reachable square with the smallest index 
-    def minreachable_square(self, reachable_squares):
-        min_square = reachable_squares[0]
-        for i in range(1, len(reachable_squares)):
-            if min_square[Y] * self.cols + min_square[X] > reachable_squares[i][Y] * self.cols + reachable_squares[i][X]:
-                min_square = reachable_squares[i]
-        return min_square
-
-    # Deprecated. Return all the reachable square from "ares_position"
-    def reachable_squares(self, ares_postion , stone_positions ):
-        # A simple DFS to find reachable squares
-        frontier = [ares_postion]
-        explored = []
-        while frontier:
-            child = frontier.pop()
-            explored.append(child)
-            for neighbor in self.neighbors(child):
-                if self.matrix_at(neighbor) != WALL \
-                    and (neighbor not in stone_positions) \
-                        and (neighbor not in explored) \
-                            and (neighbor not in frontier):
-                    frontier.append(neighbor)
-        return explored
-
     # Can ares push a stone at "stone_position" from "ares_position"
     def can_push(self, ares_position , stone_position , state:State):
         y_translation = stone_position[Y] - ares_position[Y]
         x_translation = stone_position[X] - ares_position[X]
         new_position = (stone_position[Y] + y_translation, stone_position[X] + x_translation)
        
-        if self.matrix_at(new_position) != WALL and (new_position not in state.stone_positions):
-            return True
-        return False
-    
-    # Deprecated. Can ares move in the particular direction
-    def can_move(self, ares_position, direction, state : State):
-        new_position = (ares_position[Y] + direction[Y], ares_position[X] + direction[X])
         if self.matrix_at(new_position) != WALL and (new_position not in state.stone_positions):
             return True
         return False
@@ -430,7 +393,8 @@ class Sokoban:
         ares_last_position = self.initial_ares_position
         stone_positions = self.initial_stone_positions.copy()
         for i in range(len(path)):
-            time.sleep(.1)
+            if console_output:
+                time.sleep(.2)
             ares_movement = path[i].lower()
             ares_direction = (0, 0)
             if ares_movement == "l":

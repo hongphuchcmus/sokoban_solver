@@ -1,5 +1,6 @@
 import sokoban_console_refactored as skb
 import time as time
+import tracemalloc
 
 class BFSSolver:
 
@@ -9,10 +10,7 @@ class BFSSolver:
         self.explored = set()
         self.transposition_table = {}
         self.parents = {}
-        self.MIN_REACHABLE = 0
-        self.REACHABLE_POSITIONS = 1
-        self.REACHABLE_STONES_NEIGHBORS = 2
-        self.MAX = 1000
+        self.record = skb.Record()
 
     def minreachable_square(self, g : skb.Sokoban, reachable_squares):
         min_square = reachable_squares[0]
@@ -116,7 +114,7 @@ class BFSSolver:
                 return []
         return navigation_path
 
-    def branch(self, g : skb.Sokoban, state: skb.State) -> list[skb.State]:
+    def branch(self, g : skb.Sokoban, state: skb.State):
         child_states = []
         
         reachables = self.reachable_squares(g, state.ares_position, state.stone_positions)
@@ -139,21 +137,16 @@ class BFSSolver:
                 new_min_reachable = self.minreachable_square(g, new_reachables)
 
                 child_state = skb.State(new_min_reachable, new_stone_positions)
-                #g.draw_state(child_state)
+                self.record.node += 1
+                self.record.weight += g.get_stone_weight(stone_id)
 
                 deadlock = g.get_deadlock(child_state, stone_new_position)
                 if len(deadlock) > 0:
                     #g.draw_state(child_state, deadlock)
                     #print("Deadlock!")
                     continue
-                #child_hash_test = child_state.get_hash()
-                # if child_hash_test == "-1063920407664356272":
-                #     g.draw_state(child_state, new_reachables)
-                #     input(f"Pausing at {child_hash_test}")
-                #g.draw_state(child_state)
-                #input("-")
-                #print(child_hash_test)
-                child_states.append(child_state)
+                weight = g.get_stone_weight(stone_id)
+                child_states.append((weight, child_state))
 
         return child_states
 
@@ -163,6 +156,12 @@ class BFSSolver:
         return skb.State(min_reachable, g.initial_stone_positions)
     
     def solve(self) -> str:
+        start_time = time.time()
+        tracemalloc.start()
+        self.record.node = 1
+        self.record.weight = 0
+        self.record.steps = 0
+
         g = self.g
 
         initial_state = self.initial_state(g)
@@ -172,6 +171,8 @@ class BFSSolver:
         self.transposition_table = {initial_state_hash : initial_state}
         self.explored.clear()
         self.parents = {initial_state_hash : None }
+
+        weights = {initial_state_hash : 0}
 
         found = False 
         goal_state_hash = ""
@@ -184,11 +185,15 @@ class BFSSolver:
             current = self.transposition_table[current_hash]
             self.explored.add(current_hash)
 
-            for child in self.branch(g, current):
+            for weight, child in self.branch(g, current):
+
                 child_hash = g.get_hash(child)
+                weights[child_hash] = weight
+                
                 if (child_hash not in self.frontier) and (child_hash not in self.explored):
                     self.transposition_table[child_hash] = child
                     self.parents[child_hash] = current_hash
+                    
                     if g.is_solved(child):
                         found = True
                         goal_state_hash = child_hash
@@ -205,10 +210,20 @@ class BFSSolver:
         state_path = []
         backtracer = goal_state_hash
         while backtracer:
+
+            self.record.weight += weights[backtracer]
+
             state_path.append(backtracer)
             g.draw_state(self.transposition_table[backtracer])
             backtracer = self.parents[backtracer]
         state_path.reverse()
-        # Call trace() to return every movement of  
+        # Call trace() to return every movement of  Ares
         path = self.trace(g, state_path)
+
+        end_time = time.time()
+        self.record.memory_mb = tracemalloc.get_traced_memory()[1] / 1000
+        tracemalloc.stop()
+        self.record.time = (end_time - start_time) * 1000
+        self.record.steps = len(path)
+
         return "".join(path)

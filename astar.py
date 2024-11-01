@@ -1,5 +1,7 @@
 import sokoban_console_refactored as skb
 import time as time
+import sys 
+import tracemalloc
 
 class AStarSolver:
     def __init__(self, g: skb.Sokoban):
@@ -10,24 +12,25 @@ class AStarSolver:
         self.parents = {}
         self.explored = set()
         self.transposition_table = {}
+        
+        self.record = skb.Record()
 
     def mahattan_distance(self, a, b):
         return abs(a[skb.Y] - b[skb.Y]) + abs(a[skb.X] - b[skb.X])
 
     def heuristic(self, g : skb.Sokoban, state : skb.State):
         h = 0
-        switches = g.get_switches() 
+        switches = g.get_switches()
         for stone in state.stone_positions:
-            smallest_distance_switch = switches[0]
-            for switch in switches:
-                if self.mahattan_distance(stone, switch) < self.mahattan_distance(stone, smallest_distance_switch):
-                    smallest_distance_switch = switch
-            h += self.mahattan_distance(stone, smallest_distance_switch)
+            smallest_distance = self.mahattan_distance(stone, switches[0])
+            for i in range(1, len(switches)):
+                distance = self.mahattan_distance(stone, switches[i])
+                if distance < smallest_distance:
+                    smallest_distance = distance 
+            h += smallest_distance
         return h
 
-
-
-    def branch(self, g : skb.Sokoban, state: skb.State) -> tuple[int, list[skb.State]]:
+    def branch(self, g : skb.Sokoban, state: skb.State):
         child_states = []
         for direction in skb.DIRECTIONS:
             
@@ -53,12 +56,13 @@ class AStarSolver:
                     break
             if encountered_stone and not pushed:
                 continue
-
+            
             child_state = skb.State(ares_new_position, new_stones)
+            self.record.node += 1
+
             h_cost = self.heuristic(g, child_state)
 
             child_states.append((g_cost, h_cost, child_state))
-
         return child_states
 
     def trace(self, g : skb.Sokoban, state_hash_path : list[skb.State]) -> str:
@@ -86,6 +90,12 @@ class AStarSolver:
         return skb.State(g.initial_ares_position, g.initial_stone_positions)
 
     def solve(self) -> str:
+        tracemalloc.start()
+        start_time = time.time()
+        self.record.weight = 0
+        self.record.steps = 0
+        self.record.node = 1
+
         g = self.g
 
         initial_state = self.initial_state(g)
@@ -98,7 +108,7 @@ class AStarSolver:
         self.explored.clear()
         self.parents = {initial_state_hash : None }
 
-        found = False 
+        found = False
         # processed_count = 0
         goal_state_hash = ""
 
@@ -107,10 +117,10 @@ class AStarSolver:
             self.frontier.sort(key=lambda x: (self.gcosts[x] + self.hcosts[x]))
             
             current_hash = self.frontier.pop(0)
-            print("Exploring state: ", current_hash)
+            # print("Exploring state: ", current_hash)
             current = self.transposition_table[current_hash]
             
-            g.draw_state(current)
+            # g.draw_state(current)
             if g.is_solved(current):
                 found = True
                 goal_state_hash = current_hash
@@ -118,10 +128,8 @@ class AStarSolver:
                 break
 
             self.explored.add(current_hash)
-            
             for g_cost, h_cost, child in self.branch(g, current):
                 child_hash = child.get_hash()
-
                 if (child_hash not in self.frontier) and (child_hash not in self.explored):
                     
                     self.transposition_table[child_hash] = child
@@ -137,7 +145,7 @@ class AStarSolver:
         
         if not found:
             return ""
-        
+
         # Tracing time!
         state_hash_path = []
         backtracer = goal_state_hash
@@ -147,4 +155,11 @@ class AStarSolver:
         state_hash_path.reverse()
         path = self.trace(g, state_hash_path)
         
+        end_time = time.time()
+        self.record.time_ms = (end_time - start_time) * 1000
+        self.record.steps = len(path)
+        self.record.weight = self.gcosts[goal_state_hash] - self.record.steps
+        self.record.memory_mb = tracemalloc.get_traced_memory()[1] / 1000
+        tracemalloc.stop()
+
         return "".join(path)

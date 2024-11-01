@@ -1,5 +1,6 @@
 import sokoban_console_refactored as skb
 import time as time
+import tracemalloc as tracemalloc
 
 class UCSSolver:
     def __init__(self, g: skb.Sokoban):
@@ -9,6 +10,8 @@ class UCSSolver:
         self.parents = {}
         self.explored = set()
         self.transposition_table = {}
+
+        self.record = skb.Record()
 
     # Since we are not saving ares exact position at each state
     # We have to use some kind of pathfinding to interpolate the path
@@ -73,33 +76,11 @@ class UCSSolver:
                 min_square = reachable_squares[i]
         return min_square
 
-    # This can be used to get all the reachable squares from a given position as well,
-    # via costs.keys(). Sorry for the fact that this function is multi-purpose
-    # (it's to avoid code duplication)
-    def costs_to_reachable_square(self, g : skb.Sokoban, ares_position, stone_positions):
-        # Use a quick UCS to find the smalledt costs to all reachables squares
-        frontier = [ares_position]
-        explored = []
-        costs = { ares_position : 0 }
-        while frontier:
-            child = frontier.pop(0)
-            explored.append(child)
-            for neighbor in g.neighbors(child):
-                if g.matrix_at(neighbor) == skb.WALL \
-                    or neighbor in stone_positions:
-                    continue
-                if (neighbor not in explored) \
-                            and (neighbor not in frontier):
-                    frontier.append(neighbor)
-                    costs[neighbor] = costs[child] + 1
-        return costs
-
     def branch(self, g : skb.Sokoban, state_hash) -> tuple[int, list[skb.State]]:
         child_states = []
         state = self.transposition_table[state_hash]
         
         for direction in skb.DIRECTIONS:
-            
             ares_new_position = (state.ares_position[skb.Y] + direction[skb.Y], state.ares_position[skb.X] + direction[skb.X])
             if g.matrix_at(ares_new_position) == skb.WALL:
                 continue
@@ -123,6 +104,8 @@ class UCSSolver:
                 continue
 
             child_state = skb.State(ares_new_position, new_stones)
+            self.record.node += 1
+
             child_states.append((weight, child_state))
 
         return child_states
@@ -131,6 +114,12 @@ class UCSSolver:
         return skb.State(g.initial_ares_position, g.initial_stone_positions)
         
     def solve(self) -> str:
+        start_time = time.time()
+        tracemalloc.start()
+        self.record.steps = 0
+        self.record.weight = 0
+        self.record.node = 1
+
         g = self.g
 
         initial_state = self.initial_state(g)
@@ -147,7 +136,7 @@ class UCSSolver:
         goal_state_hash = ""
 
         while len(self.frontier) > 0:
-            print("processed_count = ", processed_count)
+            # print("processed_count = ", processed_count)
             # Priority queue base on path costs
             #self.frontier.sort(key=lambda x: self.costs[x])
             
@@ -166,9 +155,8 @@ class UCSSolver:
             branching = []
             for weight, child in self.branch(g, current_hash):
                 child_hash = child.get_hash()
-                
 
-                if (child_hash not in self.frontier) and (child_hash not in self.transposition_table):
+                if (child_hash not in self.frontier) and (child_hash not in self.explored):
                     
                     self.transposition_table[child_hash] = child
                     self.parents[child_hash] = current_hash
@@ -186,8 +174,6 @@ class UCSSolver:
         if not found:
             return ""
         
-        print("Total cost: ", self.costs[goal_state_hash])
-
         # Tracing time!
         state_hash_path = []
         backtracer = goal_state_hash
@@ -195,8 +181,14 @@ class UCSSolver:
             state_hash_path.append(backtracer)
             backtracer = self.parents[backtracer]
         state_hash_path.reverse()
-        print(state_hash_path)
         
         path = self.trace(g, state_hash_path)
-        
+
+        end_time = time.time()
+        self.record.time_ms = (end_time - start_time) * 1000
+        self.record.steps = len(path)
+        self.record.weight = self.costs[goal_state_hash] - self.record.steps
+        self.record.memory_mb = tracemalloc.get_traced_memory()[1] / 1000
+        tracemalloc.stop()
+
         return "".join(path)

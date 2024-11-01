@@ -1,5 +1,6 @@
 import sokoban_console_refactored as skb
 import time as time
+import tracemalloc as tracemalloc
 
 class DFSSolver:
     def __init__(self, g: skb.Sokoban):
@@ -8,10 +9,7 @@ class DFSSolver:
         self.explored = set()
         self.transposition_table = {}
         self.parents = {}
-        self.MIN_REACHABLE = 0
-        self.REACHABLE_POSITIONS = 1
-        self.REACHABLE_STONES_NEIGHBORS = 2
-        self.MAX = 1000
+        self.record = skb.Record()
 
     def minreachable_square(self, g : skb.Sokoban, reachable_squares):
         min_square = reachable_squares[0]
@@ -34,40 +32,6 @@ class DFSSolver:
                             and (neighbor not in frontier):
                     frontier.append(neighbor)
         return explored
-
-    # Deprecated: Use older deprecated functions on skb.Skoban instead   
-    def reachable_and_pushable_positions(self, g : skb.Sokoban, state : skb.State):
-        result = {}
-        # Some algorithms need the normalized position of Ares
-        min_reachable = (self.MAX, self.MAX)
-        stone_neighbors = {} # { stone_id : neighbor } 
-        # A simple DFS to find reachable squares
-        frontier = [state.ares_position]
-        explored = []
-        while frontier:
-            child = frontier.pop()
-            explored.append(child)
-            for neighbor in g.neighbors(child):
-                if g.matrix_at(neighbor) != skb.WALL \
-                    and (neighbor not in state.stone_positions) \
-                        and (neighbor not in explored) \
-                            and (neighbor not in frontier):
-                    frontier.append(neighbor)
-                    # Update the min_reachable as well
-                    if neighbor[skb.Y] * g.cols + neighbor[skb.X] < min_reachable[skb.Y] * g.cols + min_reachable[skb.X]:
-                        min_reachable = neighbor
-                    # Check if this square is near any stone
-                    # It may become a pushable
-                    for stone_id in range(len(state.stone_positions)):
-                        if g.is_neighbor(neighbor, state.stone_positions[stone_id]):
-                            if stone_id not in stone_neighbors:
-                                stone_neighbors[stone_id] = []
-                            stone_neighbors[stone_id].append(neighbor)
-        result[self.MIN_REACHABLE] = min_reachable
-        result[self.REACHABLE_POSITIONS] = explored
-        result[self.REACHABLE_STONES_NEIGHBORS] = stone_neighbors
-        
-        return result
 
     # Since we are not saving ares exact position at each state
     # We have to use some kind of pathfinding to interpolate the path
@@ -141,7 +105,7 @@ class DFSSolver:
                 return []
         return navigation_path
 
-    def branch(self, g : skb.Sokoban, state: skb.State) -> list[skb.State]:
+    def branch(self, g : skb.Sokoban, state: skb.State):
         child_states = []
         
         # Loop through all the reachable squares, find push positions (positions where Ares can push a stone)
@@ -163,7 +127,8 @@ class DFSSolver:
                 new_min_reachable = self.minreachable_square(g, new_reachables)
 
                 child_state = skb.State(new_min_reachable, new_stone_positions)
-                #g.draw_state(child_state)
+                self.record.node += 1
+                self.record.weight += g.get_stone_weight(stone_id)
 
                 deadlock = g.get_deadlock(child_state, stone_new_position)
                 if len(deadlock) > 0:
@@ -171,7 +136,8 @@ class DFSSolver:
                     #print("Deadlock!")
                     continue
 
-                child_states.append(child_state)
+                weight = g.get_stone_weight(stone_id)
+                child_states.append((weight, child_state))
 
         return child_states
 
@@ -181,6 +147,12 @@ class DFSSolver:
         return skb.State(min_reachable, g.initial_stone_positions)
     
     def solve(self) -> str:
+        start_time = time.time()
+        tracemalloc.start()
+        self.record.weight = 0
+        self.record.steps = 0
+        self.record.node = 1
+
         g = self.g
 
         initial_state = self.initial_state(g)
@@ -190,6 +162,7 @@ class DFSSolver:
         self.transposition_table = {initial_state_hash : initial_state}
         self.explored.clear()
         self.parents = {initial_state_hash : None }
+        weights = {initial_state_hash : 0}
 
         found = False 
         goal_state_hash = ""
@@ -202,8 +175,10 @@ class DFSSolver:
             current = self.transposition_table[current_hash]
             self.explored.add(current_hash)
 
-            for child in self.branch(g, current):
+            for weight, child in self.branch(g, current):
                 child_hash = g.get_hash(child)
+                weights[child_hash] = weights[current_hash] + weight
+
                 if (child_hash not in self.explored) and (child_hash not in self.explored):
                     self.transposition_table[child_hash] = child
                     self.parents[child_hash] = current_hash
@@ -223,9 +198,19 @@ class DFSSolver:
         state_path = []
         backtracer = goal_state_hash
         while backtracer:
+            
+            self.record.weight += weights[backtracer]
+
             state_path.append(backtracer)
             backtracer = self.parents[backtracer]
         state_path.reverse()
         # Call trace() to return every movement of  
         path = self.trace(g, state_path)
+
+        end_time = time.time()
+        self.record.memory_mb = tracemalloc.get_traced_memory()[1] / 1000
+        tracemalloc.stop()
+        self.record.time_ms = (end_time - start_time) * 1000
+        self.record.steps = len(path)
+
         return "".join(path)
