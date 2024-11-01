@@ -5,14 +5,27 @@ class AStarSolver:
     def __init__(self, g: skb.Sokoban):
         self.g = g
         self.frontier = []
-        self.fcosts = {}
+        self.hcosts = {}
         self.gcosts = {}
         self.parents = {}
         self.explored = set()
         self.transposition_table = {}
 
-    def heuristic(state : skb.State):
-        return 1
+    def mahattan_distance(self, a, b):
+        return abs(a[skb.Y] - b[skb.Y]) + abs(a[skb.X] - b[skb.X])
+
+    def heuristic(self, g : skb.Sokoban, state : skb.State):
+        h = 0
+        switches = g.get_switches() 
+        for stone in state.stone_positions:
+            smallest_distance_switch = switches[0]
+            for switch in switches:
+                if self.mahattan_distance(stone, switch) < self.mahattan_distance(stone, smallest_distance_switch):
+                    smallest_distance_switch = switch
+            h += self.mahattan_distance(stone, smallest_distance_switch)
+        return h
+
+
 
     def branch(self, g : skb.Sokoban, state: skb.State) -> tuple[int, list[skb.State]]:
         child_states = []
@@ -23,7 +36,8 @@ class AStarSolver:
                 continue
             
             new_stones = state.stone_positions.copy()
-            weight = 1
+            g_cost = 1
+            h_cost = 0
             encountered_stone = False
             pushed = False
 
@@ -34,14 +48,16 @@ class AStarSolver:
                     encountered_stone = True
                     if g.can_push(state.ares_position, stone_pos, state):
                         new_stones[stone_id] = (stone_pos[skb.Y] + direction[skb.Y], stone_pos[skb.X] + direction[skb.X])
-                        weight = g.get_stone_weight(stone_id)
+                        g_cost = g.get_stone_weight(stone_id)
                         pushed = True
                     break
             if encountered_stone and not pushed:
                 continue
 
             child_state = skb.State(ares_new_position, new_stones)
-            child_states.append((weight, child_state))
+            h_cost = self.heuristic(g, child_state)
+
+            child_states.append((g_cost, h_cost, child_state))
 
         return child_states
 
@@ -76,7 +92,7 @@ class AStarSolver:
         initial_state_hash = initial_state.get_hash()
         
         self.frontier = [initial_state_hash]
-        self.fcosts = {initial_state_hash : self.heuristic(initial_state)}
+        self.hcosts = {initial_state_hash : self.heuristic(g, initial_state)}
         self.gcosts = {initial_state_hash : 0}
         self.transposition_table = {initial_state_hash : initial_state}
         self.explored.clear()
@@ -88,7 +104,7 @@ class AStarSolver:
 
         while len(self.frontier) > 0:
             # Priority queue base on fcosts
-            self.frontier.sort(key=lambda x: self.costs[x])
+            self.frontier.sort(key=lambda x: (self.gcosts[x] + self.hcosts[x]))
             
             current_hash = self.frontier.pop(0)
             print("Exploring state: ", current_hash)
@@ -103,20 +119,21 @@ class AStarSolver:
 
             self.explored.add(current_hash)
             
-            for weight, child in self.branch(g, current):
+            for g_cost, h_cost, child in self.branch(g, current):
                 child_hash = child.get_hash()
 
                 if (child_hash not in self.frontier) and (child_hash not in self.explored):
                     
                     self.transposition_table[child_hash] = child
                     self.parents[child_hash] = current_hash
-                    self.gcosts[child_hash] = self.gcosts[current_hash] + weight
+                    self.gcosts[child_hash] = self.gcosts[current_hash] + g_cost
+                    self.hcosts[child_hash] = h_cost
 
                     self.frontier.append(child_hash)
 
-                elif (child_hash in self.frontier) and (self.costs[child_hash] > self.gcosts[current_hash] + weight):
+                elif (child_hash in self.frontier) and (self.gcosts[child_hash] > self.gcosts[current_hash] + g_cost):
                     self.parents[child_hash] = current_hash
-                    self.costs[child_hash] = self.costs[current_hash] + self.cost
+                    self.gcosts[child_hash] = self.gcosts[current_hash] + g_cost
         
         if not found:
             return ""

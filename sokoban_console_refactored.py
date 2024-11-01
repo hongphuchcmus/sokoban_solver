@@ -128,6 +128,14 @@ class Sokoban:
     def get_stone_weight(self, stone_id : int) -> int:
         return self.stone_weights[stone_id]
 
+    def get_switches(self):
+        switches = []
+        for i in range(len(self.matrix)):
+            for j in range(len(self.matrix[i])):
+                if self.matrix[i][j] == SWITCH:
+                    switches.append((i, j))
+        return switches
+    
     # Check for deadlock patterns around the pushed_stone
     # Return the area that matched the deadlock pattern
     def get_deadlock(self, state : State, pushed_stone ):
