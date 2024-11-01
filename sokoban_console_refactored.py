@@ -93,9 +93,10 @@ class Sokoban:
                 matrix_string.append("\n")
         return "".join(matrix_string)
 
-    def draw_state(self, state : State, highlights  = [], console_output = True):
-        matrix_string = []
+    def draw_state(self, state : State, highlights  = [], console_output = False):
+        matrix = []
         for i, row in enumerate(self.matrix):
+            matrix_row = []
             for j, col in enumerate(row):
                 if console_output and (i, j) in highlights:
                     print(Fore.CYAN + Back.WHITE, end="")
@@ -116,12 +117,12 @@ class Sokoban:
                     print(char, end="")
                     print(Style.RESET_ALL, end="")
                 else:
-                    matrix_string.append(char)
+                    matrix_row.append(char)
             if console_output:
                 print()
             else:
-                matrix_string.append("\n")
-        return "".join(matrix_string)
+                matrix.append(matrix_row)
+        return matrix
 
     # Get what static object is at pos
     def matrix_at(self, pos) -> str:
@@ -388,7 +389,7 @@ class Sokoban:
     
     # With the specified path, run and print (or return) the result
     # of the matrix for each action  
-    def run(self, path, console_output = True) -> list[str]:
+    def run(self, path, console_output = False) -> list[str]:
         result = []
         ares_last_position = self.initial_ares_position
         stone_positions = self.initial_stone_positions.copy()
