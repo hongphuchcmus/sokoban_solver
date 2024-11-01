@@ -118,6 +118,11 @@ buttons = {
     'stop': Button(350, SCREEN_HEIGHT - 80, BUTTON_WIDTH, BUTTON_HEIGHT, "Stop", COLOR_BUTTON, COLOR_BUTTON_HOVER, COLOR_BUTTON_PRESSED, COLOR_BUTTON_TEXT, button_font)
 }
 
+# Draw initial matrix before starting animation
+screen.fill(COLOR_SPACE)
+draw_matrix(matrices[0])  # Display the initial puzzle state
+pygame.display.flip()  # Update the screen with the initial matrix
+
 while running:
     mouse_pos = pygame.mouse.get_pos()
     mouse_pressed = pygame.mouse.get_pressed()[0]
@@ -132,17 +137,17 @@ while running:
     for button in buttons.values():
         button.update(mouse_pos, mouse_pressed)
 
-    # Draw the current puzzle matrix
-    screen.fill(COLOR_SPACE)
+    # Draw the current puzzle matrix based on animation state
     if animation_state == START and frame_index < len(matrices):
+        screen.fill(COLOR_SPACE)
         draw_matrix(matrices[frame_index])
         frame_index += 1
         time.sleep(0.1)  # Control speed of animation
     elif animation_state == STOP:
         frame_index = 0  # Reset to the start
-    elif animation_state == PAUSE:
-        if frame_index < len(matrices):
-            draw_matrix(matrices[frame_index])
+    elif animation_state == PAUSE and frame_index < len(matrices):
+        screen.fill(COLOR_SPACE)
+        draw_matrix(matrices[frame_index])
 
     # Draw buttons on top
     for button in buttons.values():
