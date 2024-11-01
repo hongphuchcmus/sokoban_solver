@@ -25,6 +25,8 @@ COLOR_SWITCH = (255, 215, 0)
 COLOR_STONE_ON_SWITCH = (255, 140, 0)
 COLOR_PLAYER_ON_SWITCH = (30, 144, 255)
 COLOR_BUTTON = (70, 130, 180)
+COLOR_BUTTON_HOVER = (100, 160, 210)
+COLOR_BUTTON_PRESSED = (50, 110, 150)
 COLOR_BUTTON_TEXT = (255, 255, 255)
 
 # Button settings
@@ -36,14 +38,40 @@ START, PAUSE, STOP = 0, 1, 2
 animation_state = STOP
 frame_index = 0
 
-# Draw buttons
-def draw_button(x, y, text):
-    button_rect = pygame.Rect(x, y, BUTTON_WIDTH, BUTTON_HEIGHT)
-    pygame.draw.rect(screen, COLOR_BUTTON, button_rect)
-    text_surface = button_font.render(text, True, COLOR_BUTTON_TEXT)
-    text_rect = text_surface.get_rect(center=button_rect.center)
-    screen.blit(text_surface, text_rect)
-    return button_rect
+# Button Class
+class Button:
+    def __init__(self, x, y, width, height, text, color, hover_color, pressed_color, text_color, font):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = text
+        self.color = color
+        self.hover_color = hover_color
+        self.pressed_color = pressed_color
+        self.text_color = text_color
+        self.font = font
+        self.is_hovered = False
+        self.is_pressed = False
+
+    def draw(self, surface):
+        # Determine color based on state
+        if self.is_pressed:
+            current_color = self.pressed_color
+        elif self.is_hovered:
+            current_color = self.hover_color
+        else:
+            current_color = self.color
+        pygame.draw.rect(surface, current_color, self.rect)
+        text_surface = self.font.render(self.text, True, self.text_color)
+        text_rect = text_surface.get_rect(center=self.rect.center)
+        surface.blit(text_surface, text_rect)
+
+    def update(self, mouse_pos, mouse_pressed):
+        # Update hover and press states
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+        self.is_pressed = self.is_hovered and mouse_pressed
+
+    def is_clicked(self, mouse_pos, mouse_pressed):
+        # Check if clicked (hovered and pressed released)
+        return self.is_hovered and not mouse_pressed
 
 # Draw matrix function
 def draw_matrix(matrix):
@@ -67,13 +95,13 @@ def draw_matrix(matrix):
                 pygame.draw.rect(screen, COLOR_PLAYER_ON_SWITCH, (x, y, TILE_SIZE, TILE_SIZE))
 
 # Button click handling
-def handle_button_click(mouse_pos):
+def handle_button_click(mouse_pos, mouse_pressed, buttons):
     global animation_state
-    if start_button.collidepoint(mouse_pos):
+    if buttons['start'].is_clicked(mouse_pos, mouse_pressed):
         animation_state = START
-    elif pause_button.collidepoint(mouse_pos):
+    elif buttons['pause'].is_clicked(mouse_pos, mouse_pressed):
         animation_state = PAUSE
-    elif stop_button.collidepoint(mouse_pos):
+    elif buttons['stop'].is_clicked(mouse_pos, mouse_pressed):
         animation_state = STOP
 
 # Main game loop
@@ -83,12 +111,26 @@ path = solver_instance.solve()
 sokoban_instance = skb.Sokoban("input.txt")
 matrices = sokoban_instance.run(path)
 
+# Initialize buttons
+buttons = {
+    'start': Button(50, SCREEN_HEIGHT - 80, BUTTON_WIDTH, BUTTON_HEIGHT, "Start", COLOR_BUTTON, COLOR_BUTTON_HOVER, COLOR_BUTTON_PRESSED, COLOR_BUTTON_TEXT, button_font),
+    'pause': Button(200, SCREEN_HEIGHT - 80, BUTTON_WIDTH, BUTTON_HEIGHT, "Pause", COLOR_BUTTON, COLOR_BUTTON_HOVER, COLOR_BUTTON_PRESSED, COLOR_BUTTON_TEXT, button_font),
+    'stop': Button(350, SCREEN_HEIGHT - 80, BUTTON_WIDTH, BUTTON_HEIGHT, "Stop", COLOR_BUTTON, COLOR_BUTTON_HOVER, COLOR_BUTTON_PRESSED, COLOR_BUTTON_TEXT, button_font)
+}
+
 while running:
+    mouse_pos = pygame.mouse.get_pos()
+    mouse_pressed = pygame.mouse.get_pressed()[0]
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            handle_button_click(pygame.mouse.get_pos())
+            handle_button_click(mouse_pos, mouse_pressed, buttons)
+    
+    # Update each button
+    for button in buttons.values():
+        button.update(mouse_pos, mouse_pressed)
 
     # Draw the current puzzle matrix
     screen.fill(COLOR_SPACE)
@@ -99,15 +141,13 @@ while running:
     elif animation_state == STOP:
         frame_index = 0  # Reset to the start
     elif animation_state == PAUSE:
-        # Draw the current frame but don't increment
         if frame_index < len(matrices):
             draw_matrix(matrices[frame_index])
 
-    # Draw buttons on top of the puzzle
-    start_button = draw_button(50, SCREEN_HEIGHT - 80, "Start")
-    pause_button = draw_button(200, SCREEN_HEIGHT - 80, "Pause")
-    stop_button = draw_button(350, SCREEN_HEIGHT - 80, "Stop")
-
+    # Draw buttons on top
+    for button in buttons.values():
+        button.draw(screen)
+    
     pygame.display.flip()
 
 pygame.quit()
