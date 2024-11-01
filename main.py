@@ -90,20 +90,20 @@ while running:
         elif event.type == pygame.MOUSEBUTTONDOWN:
             handle_button_click(pygame.mouse.get_pos())
 
-    # Draw puzzle matrix or stop
+    # Draw the current puzzle matrix
+    screen.fill(COLOR_SPACE)
     if animation_state == START and frame_index < len(matrices):
-        # Draw current frame
-        screen.fill(COLOR_SPACE)
         draw_matrix(matrices[frame_index])
-        pygame.display.flip()
         frame_index += 1
-        time.sleep(0.1)
+        time.sleep(0.1)  # Control speed of animation
     elif animation_state == STOP:
-        frame_index = 0  # Reset to beginning
+        frame_index = 0  # Reset to the start
     elif animation_state == PAUSE:
-        pass  # Do nothing, retain current frame
+        # Draw the current frame but don't increment
+        if frame_index < len(matrices):
+            draw_matrix(matrices[frame_index])
 
-    # Draw buttons
+    # Draw buttons on top of the puzzle
     start_button = draw_button(50, SCREEN_HEIGHT - 80, "Start")
     pause_button = draw_button(200, SCREEN_HEIGHT - 80, "Pause")
     stop_button = draw_button(350, SCREEN_HEIGHT - 80, "Stop")
