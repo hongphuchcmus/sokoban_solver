@@ -2,10 +2,11 @@ from sokoban import WALL, ARES, STONE, SPACE, SWITCH, ARES_ON_SWITCH, STONE_ON_S
 from solver_utils import can_move, is_deadlock, init_state, is_solved, revert_state
 
 class Runner:
+
     @staticmethod
     def run(g : Sokoban, path, delay = 0.0):
         initial_state, stone_weights = init_state(g)
-        # (weight, state)
+        # (weight,state)
         states = [[0, initial_state]]
         ares_pos = g.to_pos_2d(g.ares_pos)
         
@@ -32,11 +33,13 @@ class Runner:
             # print(states[i][1])
             states[i][1] = revert_state(states[i][1])
             
-            states[i][1] = []
+            state_matrix = []
             for k in range(g.rows):
                 row = ""
                 for l in range(g.cols):
-                    row += states[i][1][k][l]
-                states[i][1].append(row)
+                    row += states[i][1][g.to_pos_1d((k, l))]
+                state_matrix.append(row)
+            
+            states[i][1] = state_matrix
         
         return states

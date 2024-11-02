@@ -27,11 +27,12 @@ class AStarSolver:
             cost += min_cost
         return cost
     
-    def solve(self):
-        self.record.steps = 0
-        self.record.node = 1
-        start_time = time.time()
-        tracemalloc.start()
+    def solve(self, recorded = True):
+        if recorded:
+            self.record.steps = 0
+            self.record.node = 1
+            start_time = time.time()
+            tracemalloc.start()
         # mem_before = Record.process_memory()
 
         g = self.g
@@ -73,16 +74,19 @@ class AStarSolver:
                         self.frontier.pop()
                         heapify(self.frontier)
                     heappush(self.frontier, (fcost, gcost, new_state, new_ares_pos, path + path_dir))
-                    self.record.node += 1
+                    
+                    if recorded:
+                        self.record.node += 1
 
         if result == None:
             return None
         
-        self.record.time_ms = (time.time() - start_time) * 1000
-        self.record.memory_mb = tracemalloc.get_traced_memory()[1] / (1024**2)#(Record.process_memory() - mem_before) / 1024**2 # B -> MiB #tracemalloc.get_traced_memory()[1] / 1000
-        tracemalloc.stop()
-        self.record.weight = result[0] - len(result[1])
-        self.record.steps = len(result[1])
+        if recorded:
+            self.record.time_ms = (time.time() - start_time) * 1000
+            #self.record.memory_mb = tracemalloc.get_traced_memory()[1] / (1024**2)#(Record.process_memory() - mem_before) / 1024**2 # B -> MiB #tracemalloc.get_traced_memory()[1] / 1000
+            #tracemalloc.stop()
+            self.record.weight = result[0] - len(result[1])
+            self.record.steps = len(result[1])
         
         return result[1]
 

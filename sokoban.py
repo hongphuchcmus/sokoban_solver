@@ -1,5 +1,5 @@
 import os
-import psutil
+# import psutil
 import time
 
 ARES = "@"
@@ -20,14 +20,14 @@ class Record:
         self.time_ms = 0
         self.weight = 0
 
-    @staticmethod
-    def process_memory():
-        process = psutil.Process(os.getpid())
-        mem_info = process.memory_info()
-        return mem_info.rss
+    # @staticmethod
+    # def process_memory():
+    #     process = psutil.Process(os.getpid())
+    #     mem_info = process.memory_info()
+    #     return mem_info.rss
 
-    def data(self) -> str:
-        return f"Steps: {self.steps}, Weight: {self.weight}, Node: {self.node}, Time (ms): {self.time_ms:6f}, Memory (MB): {self.memory_mb:6f}"
+    # def data(self) -> str:
+    #     return f"Steps: {self.steps}, Weight: {self.weight}, Node: {self.node}, Time (ms): {self.time_ms:6f}, Memory (MB): {self.memory_mb:6f}"
 
 
 class Sokoban:
@@ -42,7 +42,33 @@ class Sokoban:
             self.cols = len(self.matrix[0])
             self.matrix = "".join(self.matrix)
             self.ares_pos = self.matrix.index(ARES)
+            # Unused spaces that cannot reachable
+            self.outer_squares = self.init_outer_squares()
     
+    def init_outer_squares(self):
+        # A quick DFS to find the playable region of the map
+        frontier = [self.to_pos_2d(self.ares_pos)]
+        explored = set()
+        while frontier:
+            pos = frontier.pop()
+            explored.add(pos)
+            for move in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                new_pos = (pos[0] + move[0], pos[1] + move[1])
+                if new_pos in explored:
+                    continue
+                if new_pos[0] < 0 or new_pos[0] >= self.rows or new_pos[1] < 0 or new_pos[1] >= self.cols:
+                    continue
+                if self.state_at(self.matrix, new_pos) == WALL:
+                    continue
+                frontier.append(new_pos)
+        # outer squares will the space squares that aren't in the explored set
+        outer_squares = set()
+        for i in range(len(self.matrix)):
+            pos = self.to_pos_2d(i)
+            if self.matrix[i] == SPACE and pos not in explored:
+                outer_squares.add(pos)
+        return outer_squares
+
     def to_pos_2d(self, pos):
         return pos // self.cols, pos % self.cols
     

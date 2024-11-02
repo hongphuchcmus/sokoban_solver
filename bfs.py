@@ -14,11 +14,12 @@ class BFSSolver:
         
         self.record = Record()
 
-    def solve(self):
-        start_time = time.time()
-        tracemalloc.start()
-        self.record.steps = 0
-        self.record.node = 1
+    def solve(self, recorded = True):
+        if recorded:
+            start_time = time.time()
+            tracemalloc.start()
+            self.record.steps = 0
+            self.record.node = 1
         #mem_before = Record.process_memory()
 
         g = self.g
@@ -48,17 +49,20 @@ class BFSSolver:
                     result = (cost + move_cost, path + path_dir)
                     break
                 self.frontier.append((new_state, (ares_pos[0] + move[0], ares_pos[1] + move[1]), cost + move_cost, path + path_dir) )
-                self.record.node += 1
+                
+                if recorded:
+                    self.record.node += 1
             if result != None:
                 break
         
         if result == None:
             return None
         
-        self.record.time_ms = (time.time() - start_time) * 1000
-        self.record.memory_mb =  tracemalloc.get_traced_memory()[1] / (1024**2) #(Record.process_memory() - mem_before) / 1024**2  
-        tracemalloc.stop()
-        self.record.weight = result[0] - len(result[1])
-        self.record.steps = len(result[1])
+        if recorded:
+            self.record.time_ms = (time.time() - start_time) * 1000
+            self.record.memory_mb =  tracemalloc.get_traced_memory()[1] / (1024**2) #(Record.process_memory() - mem_before) / 1024**2  
+            tracemalloc.stop()
+            self.record.weight = result[0] - len(result[1])
+            self.record.steps = len(result[1])
         
         return result[1]
