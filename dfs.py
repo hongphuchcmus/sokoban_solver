@@ -1,216 +1,65 @@
-import sokoban_console_refactored as skb
-import time as time
-import tracemalloc as tracemalloc
+from sokoban import Sokoban, Record
+import time
+import tracemalloc
+from solver_utils import can_move, is_deadlock, init_state, is_solved
 
 class DFSSolver:
-    def __init__(self, g: skb.Sokoban):
-        self.g = g
+    def __init__(self, g : Sokoban) -> None:
         self.frontier = []
-        self.explored = set()
-        self.transposition_table = {}
-        self.parents = {}
-        self.record = skb.Record()
-
-    def minreachable_square(self, g : skb.Sokoban, reachable_squares):
-        min_square = reachable_squares[0]
-        for i in range(1, len(reachable_squares)):
-            if min_square[skb.Y] * g.cols + min_square[skb.X] > reachable_squares[i][skb.Y] * g.cols + reachable_squares[i][skb.X]:
-                min_square = reachable_squares[i]
-        return min_square
-
-    def reachable_squares(self, g : skb.Sokoban, ares_position , stone_positions ):
-        # A simple DFS to find reachable squares
-        frontier = [ares_position]
-        explored = []
-        while frontier:
-            child = frontier.pop()
-            explored.append(child)
-            for neighbor in g.neighbors(child):
-                if g.matrix_at(neighbor) != skb.WALL \
-                    and (neighbor not in stone_positions) \
-                        and (neighbor not in explored) \
-                            and (neighbor not in frontier):
-                    frontier.append(neighbor)
-        return explored
-
-    # Since we are not saving ares exact position at each state
-    # We have to use some kind of pathfinding to interpolate the path
-    # between two states
-    def bfs_transition_path(self, g : skb.Sokoban, from_position, to_position, stone_positions):
-        frontier = [from_position]
-        explored = []
-        parents = {from_position : None}
-        found = False
-        while frontier:
-            current = frontier.pop(0)
-            explored.append(current)
-            for neighbor in g.neighbors(current):
-                if g.matrix_at(neighbor) != skb.WALL \
-                    and (neighbor not in stone_positions) \
-                        and (neighbor not in explored) \
-                            and (neighbor not in frontier):
-                    frontier.append(neighbor)
-                    parents[neighbor] = current
-                    if neighbor == to_position:
-                        found = True
-                        break
-            if found:
-                break
-        if not found:
-            return []
+        self.explored = {None}
+        self.stone_weights = {}
+        self.g = g
         
-        path = []
-        backtracer = to_position
-        while backtracer:
-            path.append(backtracer)
-            backtracer = parents[backtracer]
-        path.reverse()
+        self.record = Record()
 
-        return path
-    
-    def trace(self, g : skb.Sokoban, state_hash_path):
-        navigation_path = []
-
-        ares_last_position = g.initial_ares_position
-        for i in range(len(state_hash_path)-1):
-            #print("Interpolating state ", i)
-            current_state = self.transposition_table[state_hash_path[i]]
-            next_state = self.transposition_table[state_hash_path[i+1]]
-            
-            interpolated = False
-            # We must find the difference in stone postions
-            # to determine where is ares's next position
-            for j in range(len(current_state.stone_positions)):
-                if current_state.stone_positions[j] != next_state.stone_positions[j]:
-                    current_position = current_state.stone_positions[j]
-                    new_position = next_state.stone_positions[j]
-                    push_direction = (new_position[skb.Y] - current_position[skb.Y], new_position[skb.X] - current_position[skb.X])
-                    # Where Ares should be to push the stone
-                    push_position = (current_position[skb.Y] - push_direction[skb.Y], current_position[skb.X] - push_direction[skb.X])
-
-                    # Move Ares to the push position
-                    path = self.bfs_transition_path(g, ares_last_position, push_position, current_state.stone_positions)
-                    for k in range(len(path)-1):
-                        direction = (path[k+1][skb.Y] - path[k][skb.Y], path[k+1][skb.X] - path[k][skb.X])
-                        navigation_path.append(g.map_move_direction(direction))
-                    # Push the stone
-                    navigation_path.append(g.map_move_direction(push_direction).upper())
-                    # Ares is now at the stone old position
-                    ares_last_position = current_position
-
-                    interpolated = True
-                    break
-            if not interpolated:
-                print("Some thing went wrong. We should always have a stone position change")
-                return []
-        return navigation_path
-
-    def branch(self, g : skb.Sokoban, state: skb.State):
-        child_states = []
-        
-        # Loop through all the reachable squares, find push positions (positions where Ares can push a stone)
-        # Each push action create a child state
-        for push_position in self.reachable_squares(g, state.ares_position, state.stone_positions):
-            for stone_id in range(len(state.stone_positions)):
-                stone_current_position = state.stone_positions[stone_id]
-                if not g.is_neighbor(push_position, stone_current_position) \
-                    or not g.can_push(push_position, stone_current_position, state):
-                    continue
-                
-                stone_new_position = g.push(push_position, stone_current_position, state)
-                
-                # Create a new state
-                new_stone_positions = state.stone_positions.copy()
-                new_stone_positions[stone_id] = stone_new_position
-
-                new_reachables = self.reachable_squares(g, stone_new_position, new_stone_positions)
-                new_min_reachable = self.minreachable_square(g, new_reachables)
-
-                child_state = skb.State(new_min_reachable, new_stone_positions)
-                self.record.node += 1
-                self.record.weight += g.get_stone_weight(stone_id)
-
-                deadlock = g.get_deadlock(child_state, stone_new_position)
-                if len(deadlock) > 0:
-                    #g.draw_state(child_state, deadlock)
-                    #print("Deadlock!")
-                    continue
-
-                weight = g.get_stone_weight(stone_id)
-                child_states.append((weight, child_state))
-
-        return child_states
-
-    def initial_state(self, g : skb.Sokoban) -> skb.State:
-        reachables = self.reachable_squares(g, g.initial_ares_position, g.initial_stone_positions)
-        min_reachable = self.minreachable_square(g, reachables)
-        return skb.State(min_reachable, g.initial_stone_positions)
-    
-    def solve(self) -> str:
-        start_time = time.time()
-        tracemalloc.start()
-        self.record.weight = 0
+    def solve(self):
         self.record.steps = 0
         self.record.node = 1
+        start_time = time.time()
+        tracemalloc.start()
+        #mem_before = Record.process_memory()
 
         g = self.g
-
-        initial_state = self.initial_state(g)
-        initial_state_hash = initial_state.get_hash()
-        
-        self.frontier = [initial_state_hash]
-        self.transposition_table = {initial_state_hash : initial_state}
+        # (state, ares_pos, cost, path)
+        # cost is only used for record
+        initial_state, self.stone_weights = init_state(g) 
+        self.frontier.append((initial_state, g.to_pos_2d(g.ares_pos), 0, '') )
         self.explored.clear()
-        self.parents = {initial_state_hash : None }
-        weights = {initial_state_hash : 0}
-
-        found = False 
-        goal_state_hash = ""
-
-        # processsed_count = 0
-
-        while len(self.frontier) > 0:
-            #print("processed_count = ", processed_count)
-            current_hash = self.frontier.pop()
-            current = self.transposition_table[current_hash]
-            self.explored.add(current_hash)
-
-            for weight, child in self.branch(g, current):
-                child_hash = g.get_hash(child)
-                weights[child_hash] = weights[current_hash] + weight
-
-                if (child_hash not in self.explored) and (child_hash not in self.explored):
-                    self.transposition_table[child_hash] = child
-                    self.parents[child_hash] = current_hash
-                    if g.is_solved(child):
-                        found = True
-                        goal_state_hash = child_hash
-                        print("Done!")
-                        break
-                    self.frontier.append(child_hash)
-            #processed_count += 1
-            if found:
-                break
-        if not found:
-            ""
         
-        # Backtracking to contruct the path
-        state_path = []
-        backtracer = goal_state_hash
-        while backtracer:
+        # g.draw_state(g.matrix)
+        moves = Sokoban.moves()
+
+        result = None
+
+        while self.frontier:
+            state, ares_pos, cost, path = self.frontier.pop()
+            self.explored.add(state)
             
-            self.record.weight += weights[backtracer]
+            # g.draw_state(state)
 
-            state_path.append(backtracer)
-            backtracer = self.parents[backtracer]
-        state_path.reverse()
-        # Call trace() to return every movement of  
-        path = self.trace(g, state_path)
-
-        end_time = time.time()
-        self.record.memory_mb = tracemalloc.get_traced_memory()[1] / 1000
+            for move in moves:
+                new_state, move_cost, pushed = can_move(g, state, ares_pos, move, self.stone_weights)
+                if new_state is None or new_state in self.explored or is_deadlock(g, new_state):
+                    continue
+                if new_state in (f[0] for f in self.frontier):
+                    continue
+                path_dir =  Sokoban.move_to_char(move).upper() if pushed else Sokoban.move_to_char(move)
+                if is_solved(new_state):
+                    result = (cost + move_cost, path + path_dir)
+                    break
+                self.frontier.append((new_state, (ares_pos[0] + move[0], ares_pos[1] + move[1]), cost + move_cost, path + path_dir) )
+                self.record.node += 1
+            
+            if result != None:
+                break
+        
+        if result == None:
+            return None
+        
+        self.record.time_ms = (time.time() - start_time) * 1000
+        self.record.memory_mb = tracemalloc.get_traced_memory()[1] / (1024**2) #(Record.process_memory() - mem_before) / (1024**2)
         tracemalloc.stop()
-        self.record.time_ms = (end_time - start_time) * 1000
-        self.record.steps = len(path)
+        self.record.weight = result[0] - len(result[1])
+        self.record.steps = len(result[1])
 
-        return "".join(path)
+        return result[1]
