@@ -1,165 +1,89 @@
-import sokoban_console_refactored as skb
-import time as time
-import sys 
+from sokoban import WALL, ARES, STONE, SPACE, SWITCH, ARES_ON_SWITCH, STONE_ON_SWITCH, Sokoban, Record
+from heapq import heappop, heappush, heapify
+import time
 import tracemalloc
+import os
+
+from solver_utils import can_move, is_deadlock, init_state, is_solved, stones_and_switches
 
 class AStarSolver:
-    def __init__(self, g: skb.Sokoban):
-        self.g = g
+    def __init__(self, g : Sokoban) -> None:
         self.frontier = []
-        self.hcosts = {}
-        self.gcosts = {}
-        self.parents = {}
-        self.explored = set()
-        self.transposition_table = {}
-        
-        self.record = skb.Record()
+        self.explored = {None}
+        self.g = g
+        self.stone_weights = {}
 
-    def mahattan_distance(self, a, b):
-        return abs(a[skb.Y] - b[skb.Y]) + abs(a[skb.X] - b[skb.X])
-
-    def heuristic(self, g : skb.Sokoban, state : skb.State):
-        h = 0
-        switches = g.get_switches()
-        for stone in state.stone_positions:
-            smallest_distance = self.mahattan_distance(stone, switches[0])
-            for i in range(1, len(switches)):
-                distance = self.mahattan_distance(stone, switches[i])
-                if distance < smallest_distance:
-                    smallest_distance = distance 
-            h += smallest_distance
-        return h
-
-    def branch(self, g : skb.Sokoban, state: skb.State):
-        child_states = []
-        for direction in skb.DIRECTIONS:
-            
-            ares_new_position = (state.ares_position[skb.Y] + direction[skb.Y], state.ares_position[skb.X] + direction[skb.X])
-            if g.matrix_at(ares_new_position) == skb.WALL:
-                continue
-            
-            new_stones = state.stone_positions.copy()
-            g_cost = 1
-            h_cost = 0
-            encountered_stone = False
-            pushed = False
-
-            # Check if ares can push any stones
-            for stone_id in range(len(state.stone_positions)):
-                stone_pos = state.stone_positions[stone_id]
-                if stone_pos == ares_new_position:
-                    encountered_stone = True
-                    if g.can_push(state.ares_position, stone_pos, state):
-                        new_stones[stone_id] = (stone_pos[skb.Y] + direction[skb.Y], stone_pos[skb.X] + direction[skb.X])
-                        g_cost = g.get_stone_weight(stone_id)
-                        pushed = True
-                    break
-            if encountered_stone and not pushed:
-                continue
-            
-            child_state = skb.State(ares_new_position, new_stones)
-            self.record.node += 1
-
-            h_cost = self.heuristic(g, child_state)
-
-            child_states.append((g_cost, h_cost, child_state))
-        return child_states
-
-    def trace(self, g : skb.Sokoban, state_hash_path : list[skb.State]) -> str:
-        path = []
-        for i in range(len(state_hash_path)-1):
-            current_state = self.transposition_table[state_hash_path[i]]
-            next_state = self.transposition_table[state_hash_path[i+1]]
-
-            ares_current_position = current_state.ares_position
-            ares_next_position = next_state.ares_position
-
-            move_direction = (ares_next_position[skb.Y] - ares_current_position[skb.Y], ares_next_position[skb.X] - ares_current_position[skb.X])
-            
-            is_pushing = False
-            for stone_pos in current_state.stone_positions:
-                if stone_pos == ares_next_position:
-                    path.append(g.map_move_direction(move_direction).upper())
-                    is_pushing = True
-                    break
-            if not is_pushing:
-                path.append(g.map_move_direction(move_direction))
-        return path
+        self.record = Record()
     
-    def initial_state(self, g : skb.Sokoban) -> skb.State:
-        return skb.State(g.initial_ares_position, g.initial_stone_positions)
-
-    def solve(self) -> str:
-        tracemalloc.start()
-        start_time = time.time()
-        self.record.weight = 0
+    def manhattan_distance(self, state):
+        stones, switches = stones_and_switches(self.g, state)
+        cost = 0
+        for stone in stones:
+            min_cost = float('inf')
+            for switch in switches:
+                c = abs(stone[0] - switch[0]) + abs(stone[1] - switch[1])
+                if c < min_cost:
+                    min_cost = c
+            cost += min_cost
+        return cost
+    
+    def solve(self):
         self.record.steps = 0
         self.record.node = 1
+        start_time = time.time()
+        tracemalloc.start()
+        # mem_before = Record.process_memory()
 
         g = self.g
-
-        initial_state = self.initial_state(g)
-        initial_state_hash = initial_state.get_hash()
-        
-        self.frontier = [initial_state_hash]
-        self.hcosts = {initial_state_hash : self.heuristic(g, initial_state)}
-        self.gcosts = {initial_state_hash : 0}
-        self.transposition_table = {initial_state_hash : initial_state}
+        self.frontier = []
+        self.explored = {None}
+        initial_state, self.stone_weights = init_state(g)
+        # (fcost, gcost, state, ares_pos, path)
+        self.frontier = [(self.manhattan_distance(g.matrix), 0, initial_state, g.to_pos_2d(g.ares_pos), '')]
         self.explored.clear()
-        self.parents = {initial_state_hash : None }
 
-        found = False
-        # processed_count = 0
-        goal_state_hash = ""
+        result = None
 
-        while len(self.frontier) > 0:
-            # Priority queue base on fcosts
-            self.frontier.sort(key=lambda x: (self.gcosts[x] + self.hcosts[x]))
-            
-            current_hash = self.frontier.pop(0)
-            # print("Exploring state: ", current_hash)
-            current = self.transposition_table[current_hash]
-            
-            # g.draw_state(current)
-            if g.is_solved(current):
-                found = True
-                goal_state_hash = current_hash
-                print("Done!")
+        moves = Sokoban.moves()
+        while self.frontier:
+            #self.frontier.sort(key = lambda x: x[0])
+            _, curr_gcost, state, ares_pos, path = heappop(self.frontier)
+            self.explored.add(state)
+
+            if is_solved(state):
+                result = (curr_gcost, path)
                 break
 
-            self.explored.add(current_hash)
-            for g_cost, h_cost, child in self.branch(g, current):
-                child_hash = child.get_hash()
-                if (child_hash not in self.frontier) and (child_hash not in self.explored):
+            for move in moves:
+                new_state, move_cost, pushed = can_move(g, state, ares_pos, move, self.stone_weights)
+                if new_state is None or new_state in self.explored or is_deadlock(g, new_state):
+                    continue
+
+                gcost = curr_gcost + move_cost
+                fcost = gcost + self.manhattan_distance(state)
+                
+                frontier_pos = next((i for i, f in enumerate(self.frontier) if f[2] == new_state), -1)
+
+                if frontier_pos == -1 or gcost < self.frontier[frontier_pos][1]:
+                    path_dir =  Sokoban.move_to_char(move).upper() if pushed else Sokoban.move_to_char(move)
+                    new_ares_pos = (ares_pos[0] + move[0], ares_pos[1] + move[1])
                     
-                    self.transposition_table[child_hash] = child
-                    self.parents[child_hash] = current_hash
-                    self.gcosts[child_hash] = self.gcosts[current_hash] + g_cost
-                    self.hcosts[child_hash] = h_cost
+                    if frontier_pos != -1:
+                        self.frontier[frontier_pos] = self.frontier[-1]
+                        self.frontier.pop()
+                        heapify(self.frontier)
+                    heappush(self.frontier, (fcost, gcost, new_state, new_ares_pos, path + path_dir))
+                    self.record.node += 1
 
-                    self.frontier.append(child_hash)
-
-                elif (child_hash in self.frontier) and (self.gcosts[child_hash] > self.gcosts[current_hash] + g_cost):
-                    self.parents[child_hash] = current_hash
-                    self.gcosts[child_hash] = self.gcosts[current_hash] + g_cost
+        if result == None:
+            return None
         
-        if not found:
-            return ""
-
-        # Tracing time!
-        state_hash_path = []
-        backtracer = goal_state_hash
-        while backtracer:
-            state_hash_path.append(backtracer)
-            backtracer = self.parents[backtracer]
-        state_hash_path.reverse()
-        path = self.trace(g, state_hash_path)
-        
-        end_time = time.time()
-        self.record.time_ms = (end_time - start_time) * 1000
-        self.record.steps = len(path)
-        self.record.weight = self.gcosts[goal_state_hash] - self.record.steps
-        self.record.memory_mb = tracemalloc.get_traced_memory()[1] / 1000
+        self.record.time_ms = (time.time() - start_time) * 1000
+        self.record.memory_mb = tracemalloc.get_traced_memory()[1] / (1024**2)#(Record.process_memory() - mem_before) / 1024**2 # B -> MiB #tracemalloc.get_traced_memory()[1] / 1000
         tracemalloc.stop()
+        self.record.weight = result[0] - len(result[1])
+        self.record.steps = len(result[1])
+        
+        return result[1]
 
-        return "".join(path)
+
