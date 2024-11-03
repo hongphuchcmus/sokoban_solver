@@ -104,7 +104,7 @@ class SokobanStateDrawingData:
         self.outer_squares = self.init_outer_squares(g)
     
     def state_at(self, pos):
-        return self.state[pos[0]][pos[1]]
+        return self.state[pos[0] * self.cols + pos[1]]
 
     def init_outer_squares(self, g : Sokoban):
         # A quick DFS to find the playable region of the map
