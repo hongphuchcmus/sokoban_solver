@@ -119,10 +119,3 @@ def init_state(g : Sokoban):
                 stone_index += 1
             stone_index += 1
     return "".join(state), stone_weights
-
-def revert_state(state ):
-    state = list(state)
-    for i in range(len(state)):
-        if state[i] in WSTONES + WSTONES_ON_SWITCHES:
-            state[i] = STONE if state[i] in WSTONES else STONE_ON_SWITCH
-    return "".join(state)

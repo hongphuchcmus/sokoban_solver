@@ -10,8 +10,6 @@ SWITCH = "."
 STONE_ON_SWITCH = "*"
 ARES_ON_SWITCH = "+"
 
-
-
 class Record:
     def __init__(self) -> None:
         self.steps = 0
@@ -43,31 +41,7 @@ class Sokoban:
             self.matrix = "".join(self.matrix)
             self.ares_pos = self.matrix.index(ARES)
             # Unused spaces that cannot reachable
-            self.outer_squares = self.init_outer_squares()
-    
-    def init_outer_squares(self):
-        # A quick DFS to find the playable region of the map
-        frontier = [self.to_pos_2d(self.ares_pos)]
-        explored = set()
-        while frontier:
-            pos = frontier.pop()
-            explored.add(pos)
-            for move in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-                new_pos = (pos[0] + move[0], pos[1] + move[1])
-                if new_pos in explored:
-                    continue
-                if new_pos[0] < 0 or new_pos[0] >= self.rows or new_pos[1] < 0 or new_pos[1] >= self.cols:
-                    continue
-                if self.state_at(self.matrix, new_pos) == WALL:
-                    continue
-                frontier.append(new_pos)
-        # outer squares will the space squares that aren't in the explored set
-        outer_squares = set()
-        for i in range(len(self.matrix)):
-            pos = self.to_pos_2d(i)
-            if self.matrix[i] == SPACE and pos not in explored:
-                outer_squares.add(pos)
-        return outer_squares
+            #self.outer_squares = self.init_outer_squares()
 
     def to_pos_2d(self, pos):
         return pos // self.cols, pos % self.cols
@@ -117,4 +91,41 @@ class Sokoban:
             if (i + 1) % self.cols == 0:
                 print()
         print()
-        
+
+
+class SokobanStateDrawingData:
+    def __init__(self, state, stone_weights, steps, weight, g : Sokoban) -> None:
+        self.rows = g.rows
+        self.cols = g.cols
+        self.steps = steps
+        self.weight = weight
+        self.state = state # string list format
+        self.stone_weights = stone_weights # stone weights in order of appearance
+        self.outer_squares = self.init_outer_squares(g)
+    
+    def state_at(self, pos):
+        return self.state[pos[0]][pos[1]]
+
+    def init_outer_squares(self, g : Sokoban):
+        # A quick DFS to find the playable region of the map
+        frontier = [g.to_pos_2d(g.ares_pos)]
+        explored = set()
+        while frontier:
+            pos = frontier.pop()
+            explored.add(pos)
+            for move in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                new_pos = (pos[0] + move[0], pos[1] + move[1])
+                if new_pos in explored:
+                    continue
+                if new_pos[0] < 0 or new_pos[0] >= g.rows or new_pos[1] < 0 or new_pos[1] >= g.cols:
+                    continue
+                if g.state_at(g.matrix, new_pos) == WALL:
+                    continue
+                frontier.append(new_pos)
+        # outer squares will the space squares that aren't in the explored set
+        outer_squares = set()
+        for i in range(len(g.matrix)):
+            pos = g.to_pos_2d(i)
+            if g.matrix[i] == SPACE and pos not in explored:
+                outer_squares.add(pos)
+        return outer_squares
