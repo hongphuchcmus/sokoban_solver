@@ -32,14 +32,16 @@ class Runner:
         for i in range(len(states)):
             # print(states[i][1])
             states[i][1] = revert_state(states[i][1])
-            
-            state_matrix = []
-            for k in range(g.rows):
-                row = ""
-                for l in range(g.cols):
-                    row += states[i][1][g.to_pos_1d((k, l))]
-                state_matrix.append(row)
-            
-            states[i][1] = state_matrix
+            states[i][1] = Runner.state_string_to_string_list(g, states[i][1])
         
         return states
+
+    @staticmethod
+    def state_string_to_string_list(g : Sokoban, state) -> list[str]:
+        state_str_list = []
+        for i in range(g.rows):
+            row = ""
+            for j in range(g.cols):
+                row += state[g.to_pos_1d((i, j))]
+            state_str_list.append(row)
+        return state_str_list
