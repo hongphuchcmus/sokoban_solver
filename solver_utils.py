@@ -5,8 +5,9 @@ WSTONES_ON_SWITCHES = "abcdefghijklmnopqrstuvwxyz"
 
 def get_stones(g : Sokoban, state):
     stones = []
+    stone_markers = WSTONES + WSTONES_ON_SWITCHES
     for i in range(len(state)):
-        if state[i] in WSTONES + WSTONES_ON_SWITCHES:
+        if state[i] in stone_markers:
             stones.append(g.to_pos_2d(i))
     return stones
 
@@ -114,8 +115,8 @@ def init_state(g : Sokoban):
             stone_weights[WSTONES_ON_SWITCHES[stone_index]] = g.stone_weights[stone_index]
             if state[i] in STONE:
                 state[i] = WSTONES[stone_index]
+                stone_index += 1
             else:
                 state[i] = WSTONES_ON_SWITCHES[stone_index]
                 stone_index += 1
-            stone_index += 1
     return "".join(state), stone_weights

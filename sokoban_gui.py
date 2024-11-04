@@ -8,13 +8,13 @@ from sokoban import Sokoban, SokobanStateDrawingData
 from runner import Runner
 from widgets import get_widgets
 from widgets_events import *
-
+import argparse
 
 # Screen settings
 TILE_SIZE = 30
 ROWS, COLS = 20, 20
 SCREEN_WIDTH, SCREEN_HEIGHT = COLS * TILE_SIZE, ROWS * TILE_SIZE  # Extra space for dropdown and buttons
-FPS = 15
+FPS = 24
 
 # Background image
 def draw_background(screen : pygame.surface):
@@ -62,10 +62,10 @@ def draw_sokoban_state(screen : pygame.surface, s : SokobanStateDrawingData, tex
 
 SCREEN_SELECT = 0
 SCREEN_DEMO = 1
+INPUT_DIR = "input"
+ANIMATION_STEP = 2 # Frames between each move
 
-ANIMATION_STEP = 3 # Frames between each step
-
-def main():
+def main(mode : str):
 	# Initialize Pygame
     pygame.init()    
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -73,14 +73,12 @@ def main():
 
     default_font = pygame.font.Font("fonts/FreePixel.ttf", 14)
     widgets = get_widgets(screen, default_font)
-    
 
     algo = "BFS"
     level = "1"
     sokoban_game = None
     sokoban_solved_states = []
     sokoban_solver = None
-    sokoban_initial_state = None
 
     current_screen = SCREEN_SELECT
     frame_count = 0
@@ -103,7 +101,7 @@ def main():
                 level = widgets["level_menu"].getSelected()
             elif event.type == RUN_EVENT:
                 if level is not None:
-                    sokoban_game = Sokoban(f"input/{level}.txt")
+                    sokoban_game = Sokoban(f"{INPUT_DIR}/{level}")
                 if level is not None:
                     if algo == "BFS":
                         sokoban_solver = BFSSolver(sokoban_game)
@@ -120,10 +118,11 @@ def main():
                     # Add in the initial state as placeholder
                     sokoban_solved_states = [Runner.initial_state(sokoban_game)]
                     current_screen = SCREEN_DEMO
-                    
             elif event.type == START_EVENT:
                 state_index = 0
-                running_solver = True
+                if len(sokoban_solved_states) == 1:
+                    running_solver = True
+                is_paused = False
             elif event.type == PAUSE_EVENT:
                 is_paused = not is_paused
             elif event.type == STOP_EVENT:
@@ -135,8 +134,25 @@ def main():
                 sokoban_solved_states = []
                 sokoban_solver = None
                 is_paused = False
+            elif mode == "debug" and event.type == pygame.KEYDOWN:
+                custom_move = ""
+                if event.key in (pygame.K_d, pygame.K_RIGHT):
+                    custom_move = 'r'
+                elif event.key in (pygame.K_a, pygame.K_LEFT):
+                    custom_move = 'l'
+                elif event.key in (pygame.K_w, pygame.K_UP):
+                    custom_move = 'u'
+                elif event.key in (pygame.K_s, pygame.K_DOWN):
+                    custom_move = 'd'
+                if custom_move != "":
+                    g = Sokoban("", sokoban_game.matrix, sokoban_game.cols, sokoban_game.rows, sokoban_game.stone_weights)
+                    sokoban_solved_states = [Runner.run(g, custom_move)[1]]
+                    sokoban_game = Sokoban("", sokoban_solved_states[0].state, sokoban_game.cols, sokoban_game.rows, sokoban_game.stone_weights)
 
-        draw_background(screen)
+        if mode == "debug":
+            screen.fill((255, 255, 255))
+        else:
+            draw_background(screen)
 
         if current_screen == SCREEN_SELECT:
             # Show the selection widgets
@@ -173,10 +189,11 @@ def main():
                 elif state_index < len(sokoban_solved_states):
                     widgets["statistic_box"].setText(f"{algo}: Step {sokoban_solved_states[state_index].steps} - Weight {sokoban_solved_states[state_index].weight}")
                     draw_sokoban_state(screen, sokoban_solved_states[state_index], default_font)
-                    if frame_count * bool(is_paused) % ANIMATION_STEP == 0:
+                    
+                    if not is_paused and frame_count % ANIMATION_STEP == 0:
                         state_index += 1
-                    if state_index == len(sokoban_solved_states):
-                        state_index = len(sokoban_solved_states) - 1
+                        if state_index == len(sokoban_solved_states):
+                            state_index = len(sokoban_solved_states) - 1
 
         if running_solver:
             widgets["message_box"].show()
@@ -201,6 +218,9 @@ def main():
             clock.tick(FPS)
             frame_count += 1
 
-
 if __name__ == '__main__':
-	main()
+    parser = argparse.ArgumentParser(description='Run mode')
+    parser.add_argument('--mode', type=str, help='debug or normal', default='normal')
+
+    args = parser.parse_args()
+    main(args.mode)

@@ -3,7 +3,8 @@ from heapq import heappop, heappush, heapify
 import time
 import tracemalloc
 import os
-from solver_utils import can_move, is_deadlock, init_state, is_solved
+from solver_utils import can_move, is_deadlock, init_state, is_solved, get_stones
+from bfs import BFSSolver
 
 class UCSSolver:
     def __init__(self, g : Sokoban) -> None:
@@ -14,15 +15,19 @@ class UCSSolver:
 
         self.record = Record()
 
-    def solve(self, recorded = True):
+    def solve(self, recorded = True, timeout = -1, record_memory = True):
+        g = self.g
+        start_time = time.time()
+        # Set up record
         if recorded:
             self.record.steps = 0
             self.record.node = 1
-            start_time = time.time()
-            tracemalloc.start()
-        #mem_before = Record.process_memory()
+            self.record.memory_mb = 0
+            if record_memory:
+                tracemalloc.start()
+        # Reset timeout
+        self.timeout = False
 
-        g = self.g
         self.frontier = []
         self.explored = {None}
         initial_state, self.stone_weights = init_state(g)
@@ -34,6 +39,10 @@ class UCSSolver:
 
         moves = Sokoban.moves()
         while self.frontier:
+            if timeout != -1 and time.time() - start_time > timeout:
+                print(f"Timeout! {timeout}s")
+                self.timeout = True
+                return None
             #self.frontier.sort(key = lambda x: x[0])
             curr_cost, state, ares_pos, path = heappop(self.frontier)
             self.explored.add(state)
@@ -44,7 +53,9 @@ class UCSSolver:
 
             for move in moves:
                 new_state, move_cost, pushed = can_move(g, state, ares_pos, move, self.stone_weights)
-                if new_state is None or new_state in self.explored or is_deadlock(g, new_state):
+                if new_state is None or new_state in self.explored or  is_deadlock(g, new_state):
+                    continue
+                if new_state in (f[1] for f in self.frontier):
                     continue
 
                 new_cost = curr_cost + move_cost
@@ -69,8 +80,9 @@ class UCSSolver:
         
         if recorded:
             self.record.time_ms = (time.time() - start_time) * 1000
-            self.record.memory_mb = tracemalloc.get_traced_memory()[1] / (1024**2)#(Record.process_memory() - mem_before) / 1024**2 # B -> MiB #tracemalloc.get_traced_memory()[1] / 1000
-            tracemalloc.stop()
+            if record_memory:
+                self.record.memory_mb = tracemalloc.get_traced_memory()[1] / 1024**2
+                tracemalloc.stop()
             self.record.weight = result[0] - len(result[1])
             self.record.steps = len(result[1])
         

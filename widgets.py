@@ -2,11 +2,14 @@ import pygame
 from pygame_widgets.button import Button
 from pygame_widgets.dropdown import Dropdown
 from widgets_events import *
+import os
 
 # Color Constants
 INACTIVE_COLOR = (212, 175, 55)
 HOVER_COLOR = (212, 200, 75)
 PRESSED_COLOR = (200, 100, 50)
+
+INPUT_DIR = "input"
 
 def get_widgets(screen : pygame.Surface, default_font : pygame.font.Font) -> dict:
 	width, height = screen.get_size()
@@ -16,7 +19,7 @@ def get_widgets(screen : pygame.Surface, default_font : pygame.font.Font) -> dic
 					hoverColour = HOVER_COLOR,
 					pressedColour = PRESSED_COLOR,
 					onRelease = lambda: pygame.event.post(pygame.event.Event(SELECT_ALGO_EVENT)))
-	level_menu = Dropdown(screen, width * (2/3) - 50, 50, 100, 50, "Level", [str(i) for i in range(1, 11)], False,
+	level_menu = Dropdown(screen, width * (2/3) - 50, 50, 100, 50, "Level", os.listdir(INPUT_DIR), False,
 					font = default_font, fontSize = 20, borderRadius = 5,
 					inactiveColour = INACTIVE_COLOR,
 					hoverColour = HOVER_COLOR,

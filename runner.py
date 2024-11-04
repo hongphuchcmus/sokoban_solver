@@ -15,7 +15,7 @@ class Runner:
             move = Sokoban.char_to_move(path[i])
             new_state, move_cost, pushed = can_move(g, states[-1].state, ares_pos, move, stone_weights_lookup)
             if new_state is None:
-                break 
+                new_state = states[-1].state
             
             ares_pos = (ares_pos[0] + move[0], ares_pos[1] + move[1])
 

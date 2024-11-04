@@ -1,6 +1,7 @@
 import os
-# import psutil
+import psutil
 import time
+from colorama import Fore, Back, Style
 
 ARES = "@"
 WALL = "#"
@@ -18,30 +19,36 @@ class Record:
         self.time_ms = 0
         self.weight = 0
 
-    # @staticmethod
-    # def process_memory():
-    #     process = psutil.Process(os.getpid())
-    #     mem_info = process.memory_info()
-    #     return mem_info.rss
+    @staticmethod
+    def process_memory(global_process : psutil.Process):
+        mem_info = global_process.memory_info()
+        return mem_info.rss
 
-    # def data(self) -> str:
-    #     return f"Steps: {self.steps}, Weight: {self.weight}, Node: {self.node}, Time (ms): {self.time_ms:6f}, Memory (MB): {self.memory_mb:6f}"
-
+    def data(self) -> str:
+        return f"Steps: {self.steps}, Weight: {self.weight}, Node: {self.node}, Time (ms): {self.time_ms:6f}, Memory (MB): {self.memory_mb:6f}"
 
 class Sokoban:
-    def __init__(self, input_file):
-        with open(input_file) as f:
-            lines = f.read().splitlines()
-            self.stone_weights = list(map(int, lines[0].split()))
-            self.matrix = []
-            for i in range(1, len(lines)):
-                self.matrix.append(lines[i])
-            self.rows = len(self.matrix)
-            self.cols = len(self.matrix[0])
-            self.matrix = "".join(self.matrix)
-            self.ares_pos = self.matrix.index(ARES)
-            # Unused spaces that cannot reachable
-            #self.outer_squares = self.init_outer_squares()
+    def __init__(self, input_file, matrix=None, cols=None, rows=None, stone_weights=None) -> None:
+        # You can either pass in the matrix or the input file
+        if matrix is not None and cols is not None and rows is not None:
+            self.matrix = matrix
+            self.rows = rows
+            self.cols = cols
+            self.stone_weights = stone_weights
+        else:
+            with open(input_file) as f:
+                lines = f.read().splitlines()
+                self.stone_weights = list(map(int, lines[0].split()))
+                self.matrix = []
+                for i in range(1, len(lines)):
+                    self.matrix.append(lines[i])
+                self.rows = len(self.matrix)
+                self.cols = len(self.matrix[0])
+        self.matrix = "".join(self.matrix)
+        for i in range(len(self.matrix)):
+            if self.matrix[i] in (ARES, ARES_ON_SWITCH):
+                self.ares_pos = i
+        self.outer_squares = self.init_outer_squares()
 
     def to_pos_2d(self, pos):
         return pos // self.cols, pos % self.cols
@@ -85,13 +92,39 @@ class Sokoban:
     def is_solved(state):
         return STONE not in state
 
-    def draw_state(self, state):
+    def draw_state(self, state, hightlights=[]):
         for i in range(len(state)):
-            print(state[i], end="")
+            if i in hightlights:
+                print(Back.WHITE + Fore.CYAN + state[i], end="")
+                print(Style.RESET_ALL, end="")
+            else:
+                print(state[i], end="")
             if (i + 1) % self.cols == 0:
                 print()
-        print()
-
+    
+    def init_outer_squares(self):
+        # A quick DFS to find the playable region of the map
+        frontier = [self.to_pos_2d(self.ares_pos)]
+        explored = set()
+        while frontier:
+            pos = frontier.pop()
+            explored.add(pos)
+            for move in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                new_pos = (pos[0] + move[0], pos[1] + move[1])
+                if new_pos in explored:
+                    continue
+                if new_pos[0] < 0 or new_pos[0] >= self.rows or new_pos[1] < 0 or new_pos[1] >= self.cols:
+                    continue
+                if self.state_at(self.matrix, new_pos) == WALL:
+                    continue
+                frontier.append(new_pos)
+        # outer squares will the space squares that aren't in the explored set
+        outer_squares = set()
+        for i in range(len(self.matrix)):
+            pos = self.to_pos_2d(i)
+            if self.matrix[i] == SPACE and pos not in explored:
+                outer_squares.add(pos)
+        return outer_squares # 2d pos
 
 class SokobanStateDrawingData:
     def __init__(self, state, stone_weights, steps, weight, g : Sokoban) -> None:
@@ -101,31 +134,7 @@ class SokobanStateDrawingData:
         self.weight = weight
         self.state = state # string list format
         self.stone_weights = stone_weights # stone weights in order of appearance
-        self.outer_squares = self.init_outer_squares(g)
+        self.outer_squares = g.outer_squares
     
     def state_at(self, pos):
         return self.state[pos[0] * self.cols + pos[1]]
-
-    def init_outer_squares(self, g : Sokoban):
-        # A quick DFS to find the playable region of the map
-        frontier = [g.to_pos_2d(g.ares_pos)]
-        explored = set()
-        while frontier:
-            pos = frontier.pop()
-            explored.add(pos)
-            for move in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-                new_pos = (pos[0] + move[0], pos[1] + move[1])
-                if new_pos in explored:
-                    continue
-                if new_pos[0] < 0 or new_pos[0] >= g.rows or new_pos[1] < 0 or new_pos[1] >= g.cols:
-                    continue
-                if g.state_at(g.matrix, new_pos) == WALL:
-                    continue
-                frontier.append(new_pos)
-        # outer squares will the space squares that aren't in the explored set
-        outer_squares = set()
-        for i in range(len(g.matrix)):
-            pos = g.to_pos_2d(i)
-            if g.matrix[i] == SPACE and pos not in explored:
-                outer_squares.add(pos)
-        return outer_squares

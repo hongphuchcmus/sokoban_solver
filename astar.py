@@ -3,8 +3,9 @@ from heapq import heappop, heappush, heapify
 import time
 import tracemalloc
 import os
+from bfs import BFSSolver
 
-from solver_utils import can_move, is_deadlock, init_state, is_solved, stones_and_switches
+from solver_utils import can_move, is_deadlock, init_state, is_solved, stones_and_switches, get_stones
 
 class AStarSolver:
     def __init__(self, g : Sokoban) -> None:
@@ -27,13 +28,18 @@ class AStarSolver:
             cost += min_cost
         return cost
     
-    def solve(self, recorded = True):
+    def solve(self, recorded = True, timeout = -1, record_memory = True):
+        g = self.g
+        start_time = time.time()
+        # Set up record
         if recorded:
             self.record.steps = 0
             self.record.node = 1
-            start_time = time.time()
-            tracemalloc.start()
-        # mem_before = Record.process_memory()
+            self.record.memory_mb = 0
+            if record_memory:
+                tracemalloc.start()
+        # Reset timeout
+        self.timeout = False
 
         g = self.g
         self.frontier = []
@@ -47,7 +53,11 @@ class AStarSolver:
 
         moves = Sokoban.moves()
         while self.frontier:
-            #self.frontier.sort(key = lambda x: x[0])
+            if timeout != -1 and time.time() - start_time > timeout:
+                print(f"Timeout! {timeout}s")
+                self.timeout = True
+                return None
+            
             _, curr_gcost, state, ares_pos, path = heappop(self.frontier)
             self.explored.add(state)
 
@@ -72,6 +82,10 @@ class AStarSolver:
                     if frontier_pos != -1:
                         self.frontier[frontier_pos] = self.frontier[-1]
                         self.frontier.pop()
+                        # Tried this but the speed improvement is mininal
+                        # if frontier_pos < len(self.frontier):
+                        #     _siftup(self.frontier, frontier_pos)
+                        #     _siftdown(self.frontier, 0, frontier_pos)
                         heapify(self.frontier)
                     heappush(self.frontier, (fcost, gcost, new_state, new_ares_pos, path + path_dir))
                     
@@ -83,11 +97,10 @@ class AStarSolver:
         
         if recorded:
             self.record.time_ms = (time.time() - start_time) * 1000
-            #self.record.memory_mb = tracemalloc.get_traced_memory()[1] / (1024**2)#(Record.process_memory() - mem_before) / 1024**2 # B -> MiB #tracemalloc.get_traced_memory()[1] / 1000
-            #tracemalloc.stop()
+            if record_memory:
+                self.record.memory_mb = tracemalloc.get_traced_memory()[1] / 1024**2
+                tracemalloc.stop()
             self.record.weight = result[0] - len(result[1])
             self.record.steps = len(result[1])
         
         return result[1]
-
-

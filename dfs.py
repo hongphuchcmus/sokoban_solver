@@ -1,7 +1,8 @@
 from sokoban import Sokoban, Record
 import time
 import tracemalloc
-from solver_utils import can_move, is_deadlock, init_state, is_solved
+from solver_utils import can_move, is_deadlock, init_state, is_solved, get_stones
+from bfs import BFSSolver
 
 class DFSSolver:
     def __init__(self, g : Sokoban) -> None:
@@ -12,15 +13,20 @@ class DFSSolver:
         
         self.record = Record()
 
-    def solve(self, recorded = True):
-
+    def solve(self, recorded = True, timeout = -1, record_memory = True):
+        g = self.g
+        start_time = time.time()
+        # Set up record
         if recorded:
             self.record.steps = 0
             self.record.node = 1
-            start_time = time.time()
-            tracemalloc.start()
-        #mem_before = Record.process_memory()
-
+            self.record.memory_mb = 0
+            if record_memory:
+                tracemalloc.start()
+        
+        # Reset timeout
+        self.timeout = False
+        
         g = self.g
         # (state, ares_pos, cost, path)
         # cost is only used for record
@@ -34,6 +40,11 @@ class DFSSolver:
         result = None
 
         while self.frontier:
+            if timeout != -1 and time.time() - start_time > timeout:
+                print(f"Timeout! {timeout}s")
+                self.timeout = True
+                return None
+            
             state, ares_pos, cost, path = self.frontier.pop()
             self.explored.add(state)
             
@@ -45,6 +56,7 @@ class DFSSolver:
                     continue
                 if new_state in (f[0] for f in self.frontier):
                     continue
+
                 path_dir =  Sokoban.move_to_char(move).upper() if pushed else Sokoban.move_to_char(move)
                 if is_solved(new_state):
                     result = (cost + move_cost, path + path_dir)
@@ -62,8 +74,9 @@ class DFSSolver:
         
         if recorded:
             self.record.time_ms = (time.time() - start_time) * 1000
-            self.record.memory_mb = tracemalloc.get_traced_memory()[1] / (1024**2) #(Record.process_memory() - mem_before) / (1024**2)
-            tracemalloc.stop()
+            if record_memory:
+                self.record.memory_mb = tracemalloc.get_traced_memory()[1] / 1024**2
+                tracemalloc.stop()
             self.record.weight = result[0] - len(result[1])
             self.record.steps = len(result[1])
 
