@@ -44,7 +44,7 @@ class Sokoban:
                     self.matrix.append(lines[i])
                 self.rows = len(self.matrix)
                 self.cols = len(self.matrix[0])
-        self.matrix = "".join(self.matrix)
+                self.matrix = "".join(self.matrix)
         for i in range(len(self.matrix)):
             if self.matrix[i] in (ARES, ARES_ON_SWITCH):
                 self.ares_pos = i

@@ -100,9 +100,14 @@ def main(mode : str):
             elif event.type == SELECT_MAP_EVENT:
                 level = widgets["level_menu"].getSelected()
             elif event.type == RUN_EVENT:
-                if level is not None:
+                if level is not None and algo is not None:
                     sokoban_game = Sokoban(f"{INPUT_DIR}/{level}")
-                if level is not None:
+                    # Add in the initial state to see the level ayout first
+                    sokoban_solved_states = [Runner.initial_state(sokoban_game)]
+                    current_screen = SCREEN_DEMO
+            elif event.type == START_EVENT:
+                state_index = 0
+                if len(sokoban_solved_states) == 1 and algo is not None:
                     if algo == "BFS":
                         sokoban_solver = BFSSolver(sokoban_game)
                     elif algo == "DFS":
@@ -111,16 +116,7 @@ def main(mode : str):
                         sokoban_solver = UCSSolver(sokoban_game)
                     elif algo == "AStar":
                         sokoban_solver = AStarSolver(sokoban_game)
-                    else:
-                        algo = None
-                # print(algo, level)
-                if algo is not None and level is not None:
-                    # Add in the initial state as placeholder
-                    sokoban_solved_states = [Runner.initial_state(sokoban_game)]
-                    current_screen = SCREEN_DEMO
-            elif event.type == START_EVENT:
-                state_index = 0
-                if len(sokoban_solved_states) == 1:
+                    
                     running_solver = True
                 is_paused = False
             elif event.type == PAUSE_EVENT:
@@ -144,10 +140,11 @@ def main(mode : str):
                     custom_move = 'u'
                 elif event.key in (pygame.K_s, pygame.K_DOWN):
                     custom_move = 'd'
+                # Altering the input
                 if custom_move != "":
                     g = Sokoban("", sokoban_game.matrix, sokoban_game.cols, sokoban_game.rows, sokoban_game.stone_weights)
                     sokoban_solved_states = [Runner.run(g, custom_move)[1]]
-                    sokoban_game = Sokoban("", sokoban_solved_states[0].state, sokoban_game.cols, sokoban_game.rows, sokoban_game.stone_weights)
+                    sokoban_game = Sokoban("", sokoban_solved_states[0].state, sokoban_game.cols, sokoban_game.rows, sokoban_solved_states[0].stone_weights)
 
         if mode == "debug":
             screen.fill((255, 255, 255))
@@ -202,6 +199,7 @@ def main(mode : str):
             pygame.display.update()
 
             path = sokoban_solver.solve(False)
+            print(path)
 
             if path is None:
                 widgets["message_box"].setText("No solution!")
