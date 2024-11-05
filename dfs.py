@@ -10,6 +10,7 @@ class DFSSolver:
         self.explored = {None}
         self.stone_weights = {}
         self.g = g
+        self.timeout = False
         
         self.record = Record()
 

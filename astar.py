@@ -5,7 +5,7 @@ import tracemalloc
 import os
 from bfs import BFSSolver
 
-from solver_utils import can_move, is_deadlock, init_state, is_solved, stones_and_switches, get_stones
+from solver_utils import can_move, is_deadlock, init_state, is_solved, get_stones
 
 class AStarSolver:
     def __init__(self, g : Sokoban) -> None:
@@ -13,18 +13,27 @@ class AStarSolver:
         self.explored = {None}
         self.g = g
         self.stone_weights = {}
-
+        self.timeout = False
         self.record = Record()
-    
+
+
     def manhattan_distance(self, state):
-        stones, switches = stones_and_switches(self.g, state)
+        g = self.g
+        stones = get_stones(g, state)
         cost = 0
+        assigned = set()
         for stone in stones:
             min_cost = float('inf')
-            for switch in switches:
+            min_switch = g.switch_pos[0]
+            for i in range(len(g.switch_pos)):
+                if i in assigned:
+                    continue
+                switch = g.to_pos_2d(g.switch_pos[i])
                 c = abs(stone[0] - switch[0]) + abs(stone[1] - switch[1])
                 if c < min_cost:
                     min_cost = c
+                    min_switch = i
+            assigned.add(min_switch)
             cost += min_cost
         return cost
     

@@ -26,7 +26,7 @@ for file in os.listdir(INPUT_DIR):
                 elif algo == "AStar":
                     solver = AStarSolver(g)
                 
-                path = solver.solve(recorded=True, record_memory=True)
+                path = solver.solve()
                 f.write(algo + "\n")
                 if path is None:
                     f.write("No solution\n")

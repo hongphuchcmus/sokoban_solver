@@ -12,6 +12,7 @@ class UCSSolver:
         self.explored = {None}
         self.g = g
         self.stone_weights = {}
+        self.timeout = False
 
         self.record = Record()
 

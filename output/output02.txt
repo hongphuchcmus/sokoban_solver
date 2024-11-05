@@ -1,8 +1,0 @@
-BFS
-Steps: 16, Weight: 3, Node: 750, Time (ms): 40.377140, Memory (MB): 0.000000
-DFS
-Steps: 32, Weight: 5, Node: 4480, Time (ms): 267.744303, Memory (MB): 0.000000
-UCS
-Steps: 16, Weight: 3, Node: 647, Time (ms): 42.848110, Memory (MB): 0.000000
-AStar
-Steps: 16, Weight: 3, Node: 667, Time (ms): 66.565514, Memory (MB): 0.000000

@@ -29,25 +29,40 @@ class Record:
 
 class Sokoban:
     def __init__(self, input_file, matrix=None, cols=None, rows=None, stone_weights=None) -> None:
+        m = ""
+        r, c = 0, 0
+        w = []
+        ares = 0
+        
         # You can either pass in the matrix or the input file
         if matrix is not None and cols is not None and rows is not None:
-            self.matrix = matrix
-            self.rows = rows
-            self.cols = cols
-            self.stone_weights = stone_weights
+            m = matrix
+            r = rows
+            c = cols
+            w = stone_weights
         else:
             with open(input_file) as f:
                 lines = f.read().splitlines()
-                self.stone_weights = list(map(int, lines[0].split()))
-                self.matrix = []
+                w = list(map(int, lines[0].split()))
+                m = []
                 for i in range(1, len(lines)):
-                    self.matrix.append(lines[i])
-                self.rows = len(self.matrix)
-                self.cols = len(self.matrix[0])
-                self.matrix = "".join(self.matrix)
-        for i in range(len(self.matrix)):
-            if self.matrix[i] in (ARES, ARES_ON_SWITCH):
-                self.ares_pos = i
+                    m.append(lines[i])
+                r = len(m)
+                c = len(m[0])
+                m = "".join(m)
+        for i in range(len(m)):
+            if m[i] in (ARES, ARES_ON_SWITCH):
+                ares = i
+        switches = []
+        for i in range(len(m)):
+            if m[i] in (SWITCH, STONE_ON_SWITCH):
+                switches.append(i)
+        self.matrix = m
+        self.rows = r
+        self.cols = c
+        self.stone_weights = w
+        self.ares_pos = ares
+        self.switch_pos = switches
         self.outer_squares = self.init_outer_squares()
 
     def to_pos_2d(self, pos):
@@ -88,10 +103,6 @@ class Sokoban:
     def moves():
         return [(0, 1), (0, -1), (1, 0), (-1, 0)]
     
-    @staticmethod
-    def is_solved(state):
-        return STONE not in state
-
     def draw_state(self, state, hightlights=[]):
         for i in range(len(state)):
             if i in hightlights:

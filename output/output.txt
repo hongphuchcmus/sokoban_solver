@@ -1,0 +1,6 @@
+UCS
+Steps: 9, Weight: 5, Node: 321, Time (ms): 63.023090, Memory (MB): 0.041982
+ruRRRRdrU
+AStar
+Steps: 9, Weight: 5, Node: 253, Time (ms): 46.973467, Memory (MB): 0.036490
+ruRRRRdrU

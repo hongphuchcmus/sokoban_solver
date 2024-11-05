@@ -9,6 +9,11 @@ from runner import Runner
 from widgets import get_widgets
 from widgets_events import *
 import argparse
+import os
+
+# Directory
+INPUT_DIR = "input"
+OUTPUT_DIR = "output"
 
 # Screen settings
 TILE_SIZE = 30
@@ -62,7 +67,6 @@ def draw_sokoban_state(screen : pygame.surface, s : SokobanStateDrawingData, tex
 
 SCREEN_SELECT = 0
 SCREEN_DEMO = 1
-INPUT_DIR = "input"
 ANIMATION_STEP = 2 # Frames between each move
 
 def main(mode : str):
@@ -74,11 +78,12 @@ def main(mode : str):
     default_font = pygame.font.Font("fonts/FreePixel.ttf", 14)
     widgets = get_widgets(screen, default_font)
 
-    algo = "BFS"
-    level = "1"
+    algo = None
+    level = None
     sokoban_game = None
     sokoban_solved_states = []
     sokoban_solver = None
+    sokoban_solver_record_data = ""
 
     current_screen = SCREEN_SELECT
     frame_count = 0
@@ -116,7 +121,6 @@ def main(mode : str):
                         sokoban_solver = UCSSolver(sokoban_game)
                     elif algo == "AStar":
                         sokoban_solver = AStarSolver(sokoban_game)
-                    
                     running_solver = True
                 is_paused = False
             elif event.type == PAUSE_EVENT:
@@ -198,7 +202,7 @@ def main(mode : str):
             pygame_widgets.update(events)
             pygame.display.update()
 
-            path = sokoban_solver.solve(False)
+            path = sokoban_solver.solve()
             print(path)
 
             if path is None:
@@ -210,6 +214,34 @@ def main(mode : str):
                 frame_count += 1
             else:
                 sokoban_solved_states = Runner.run(sokoban_game, path)
+                sokoban_solver_record_data = sokoban_solver.record.data()
+                # Determine the output file
+                output_file = "output.txt"
+                if level.startswith("input-") and level.endswith(".txt"):
+                    output_file = level.replace("input-", "output-")
+                # Check if this algorithm has been run before
+                # If so, only change that algorithm's output
+                output_lines = []
+                run_before = False
+                if os.path.exists(f"{OUTPUT_DIR}/{output_file}"):
+                    with open(f"{OUTPUT_DIR}/{output_file}", "r") as f:
+                        lines = f.read().splitlines()
+                        for i in range(len(lines)):
+                            if lines[i] == algo and i + 1 <= len(lines) and i + 1 < len(lines):
+                                lines[i+1] = sokoban_solver.record.data()
+                                lines[i+2] = path
+                                run_before = True
+                                break
+                        output_lines = lines
+                # If not, just append the output
+                if len(output_lines) == 0 or not run_before:
+                    output_lines.append(algo)
+                    output_lines.append(sokoban_solver.record.data())
+                    output_lines.append(path)
+                # Write the output
+                with open(f"{OUTPUT_DIR}/{output_file}", "w") as f:
+                    for line in output_lines:
+                        f.write(line + "\n")
         else:
             pygame_widgets.update(events)
             pygame.display.update()
