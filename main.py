@@ -30,22 +30,30 @@ for file in os.listdir(INPUT_DIR):
             solver_records[algo].append(solver.record)
 
 # Write a csv
-# Algo| Map | Time | Memory | Steps | Nodes
-# BFS | 1 |
-# BFS | 2 | 
-# BFS | 3 |
-# ... |...|
-# BFS| 10|
-# DFS | 1 |
-# DFS | 2 |
-# DFS | 3 |
-# ...|...|
-# DFS|10|
-# ...|...
+# Time
+# Map/Algo | 1 | 2 | 3 | 4 | ... | n
+# BFS      |   |   |   |   |     |  
+# DFS      |   |   |   |   |     |  
+# UCS      |   |   |   |   |     |  
+# AStar    |   |   |   |   |     |  
 
-with open("results.csv", "w") as f:
-    f.write("Algo, Map,Time,Memory,Steps,Nodes\n")
-    for algo in solver_records:
-        for i in range(len(solver_records[algo])):
-            record = solver_records[algo][i]
-            f.write(f"{algo},{i+1}, {record.time_ms},{record.memory_mb},{record.steps},{record.node}\n")
+with open("output.csv", "w") as f:
+    f.write("Property, Algorithm")
+    for i in range(len(solver_records["BFS"])):
+        f.write(f",\"{i+1}\"")
+    f.write("\n")
+
+    for prop in ["Time", "Steps", "Node", "Memory usage"]:
+        for algo in solver_records:
+            f.write(f"{prop}")
+            f.write(f", {algo}")
+            for record in solver_records[algo]:
+                if prop == "Time":
+                    f.write(f",{record.time_ms}")
+                elif prop == "Steps":
+                    f.write(f",{record.steps}")
+                elif prop == "Node":
+                    f.write(f",{record.node}")
+                elif prop == "Memory usage":
+                    f.write(f",{record.memory_mb}")
+            f.write("\n")
