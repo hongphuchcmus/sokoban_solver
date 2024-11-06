@@ -10,32 +10,42 @@ import psutil
 INPUT_DIR = "input"
 OUTPUT_DIR = "output"
 
+solver_records = {}
 for file in os.listdir(INPUT_DIR):
-    if file.startswith("input_") and file.endswith(".txt"):
+    if file.startswith("input-") and file.endswith(".txt"):
         g = Sokoban(f"{INPUT_DIR}/{file}")
-        output_file = file.replace("input_", "output_")
-        with open(f"{OUTPUT_DIR}/{output_file}", "w") as f:
-            for algo in ["BFS", "DFS", "UCS", "AStar"]:
-                print(f"Running {algo} on {file}")
-                if algo == "BFS":
-                    solver = BFSSolver(g)
-                elif algo == "DFS":
-                    solver = DFSSolver(g)
-                elif algo == "UCS":
-                    solver = UCSSolver(g)
-                elif algo == "AStar":
-                    solver = AStarSolver(g)
-                
-                path = solver.solve()
-                f.write(algo + "\n")
-                if path is None:
-                    f.write("No solution\n")
-                else:
-                    print(solver.record.data())
-                    f.write(solver.record.data() + "\n")
+        for algo in ["BFS", "DFS", "UCS", "AStar"]:
+            if algo == "BFS":
+                solver = BFSSolver(g)
+            elif algo == "DFS":
+                solver = DFSSolver(g)
+            elif algo == "UCS":
+                solver = UCSSolver(g)
+            elif algo == "AStar":
+                solver = AStarSolver(g)
+            
+            solver.solve()
+            if algo not in solver_records:
+                solver_records[algo] = []
+            solver_records[algo].append(solver.record)
 
-# g = Sokoban("input/input_4.txt")
-# astar = AStarSolver(g)
-# path = astar.solve(recorded=True, record_memory=False)
-# print(path)
-# print(astar.record.data())
+# Write a csv
+# Algo| Map | Time | Memory | Steps | Nodes
+# BFS | 1 |
+# BFS | 2 | 
+# BFS | 3 |
+# ... |...|
+# BFS| 10|
+# DFS | 1 |
+# DFS | 2 |
+# DFS | 3 |
+# ...|...|
+# DFS|10|
+# ...|...
+
+with open("results.csv", "w") as f:
+    f.write("Algo, Map,Time,Memory,Steps,Nodes\n")
+    for algo in solver_records:
+        for i in range(len(solver_records[algo])):
+            record = solver_records[algo][i]
+            f.write(f"{algo},{i+1}, {record.time_ms},{record.memory_mb},{record.steps},{record.node}\n")
