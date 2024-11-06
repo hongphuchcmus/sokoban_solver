@@ -45,12 +45,12 @@ def is_deadlock(g : Sokoban , state):
                 #  #
                 if g.state_at(state, (stone[0], stone[1] - 1)) == WALL and g.state_at(state, (stone[0] + 1, stone[1])) == WALL:
                     return True
-        if "double box deadlock":
-            # $$ ## #$ $#
-            # ## $$ #$ $#
-            double_box_deadlock_patterns = {"$$##", "##$$", "#$#$", "$#$#",
-                                            "*$##", "##*$", "#*#$", "*#$#",
-                                            "$*##", "##*$", "#$*#", "*$#*",}
+        if "multi-boxes deadlock":
+            #      2 boxes      |   3 boxes   | 4 boxes
+            # $$ ## #$ $# $# #$ | $$ $# #$ $$ | $$     
+            # ## $$ #$ $# #$ $# | $# $$ $$ #$ | $$     
+            multiboxes_deadlock_patterns = {"$$##", "##$$", "#$#$", "$#$#", "$##$", "#$$#",
+                                            "$$$#", "$#$$", "#$$$", "$$#$", "$$$$"}
             check_state = list(state)
             for i in range(len(check_state)):
                 if check_state[i] in WSTONES_ON_SWITCHES:
@@ -67,7 +67,7 @@ def is_deadlock(g : Sokoban , state):
                         pattern.append(g.state_at(check_state, (stone[0] + x+1, stone[1]+y)))
                         pattern.append(g.state_at(check_state, (stone[0] + x+1, stone[1]+y+1)))
                         pattern = "".join(pattern)
-                        if pattern in double_box_deadlock_patterns:
+                        if STONE in pattern and pattern in multiboxes_deadlock_patterns:
                             return True
         return False
 

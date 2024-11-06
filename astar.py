@@ -16,15 +16,14 @@ class AStarSolver:
         self.timeout = False
         self.record = Record()
 
-
     def manhattan_distance(self, state):
         g = self.g
         stones = get_stones(g, state)
-        cost = 0
         assigned = set()
+        cost = 0
         for stone in stones:
             min_cost = float('inf')
-            min_switch = g.switch_pos[0]
+            min_switch = 0
             for i in range(len(g.switch_pos)):
                 if i in assigned:
                     continue
@@ -33,8 +32,8 @@ class AStarSolver:
                 if c < min_cost:
                     min_cost = c
                     min_switch = i
-            assigned.add(min_switch)
             cost += min_cost
+            assigned.add(min_switch)
         return cost
     
     def solve(self, recorded = True, timeout = -1, record_memory = True):
